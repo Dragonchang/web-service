@@ -1,0 +1,308 @@
+10.16.34.80
+
+10.16.33.229
+
+10.16.34.140
+
+开发、部署测试、运维监控
+
+k8s 也可以配置多个管理节点，拥有两个以上的管理节点被称为 高可用
+
+harbor:
+地址：core.harbor.cz.shenlan.com
+库名：rv-owl-uat
+账号：rv-owl
+密码：r1QXkWu2tY
+邮箱：zhangzuoyi@deepblueai.com
+ca.crt是harbor证书，
+
+
+Master:
+Etcd存储服务
+Api Server进程
+Controller Manager服务进程
+Scheduler服务进程
+
+Node:
+kubelet：负责对Pod对于的容器的创建、启停等任务
+kube-proxy：实现Kubernetes Service的通信与负载均衡机制的重要组件
+Docker Engine（Docker）：Docker引擎，负责本机容器的创建和管理工作
+
+Pod:
+
+
+jenkins harbor k8s
+
+准备：
+2 GB 或更多的 RAM.
+2 CPU 核或更多.
+节点之中不可以有重复的主机名、MAC 地址或 product_uuid:
+ifconfig -a
+sudo cat /sys/class/dmi/id/product_uui
+
+开启机器上的某些端口:
+https://kubernetes.io/zh/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+禁用交换分区:
+
+
+安装 k8s：
+
+# 使得 apt 支持 ssl 传输
+apt-get update && apt-get install -y apt-transport-https
+# 下载 gpg 密钥
+curl https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | apt-key add - 
+# 添加 k8s 镜像源
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
+EOF
+# 更新源列表
+apt-get update
+# 下载 kubectl，kubeadm以及 kubelet
+apt-get install -y kubelet kubeadm kubectl
+
+centos
+https://www.cnblogs.com/hyl8218/p/10060318.html
+# 配置源
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+# 安装
+yum install -y kubelet kubeadm kubectl
+/***************************************begin***********************************************/
+hostnamectl set-hostname k8s-master-44
+//配置master
+pod-network-cidr
+
+kubeadm init \
+--kubernetes-version=v1.18.2 \
+--image-repository registry.aliyuncs.com/google_containers \
+--pod-network-cidr=10.244.0.0/16
+
+kubeadm reset
+
+//生成join的命令
+kubeadm token create --print-join-command
+
+kubeadm join 10.16.34.80:6443 --token ymco47.gimtz3xqaihzbhcm \
+    --discovery-token-ca-cert-hash sha256:ab0a413535a6026cfa91d4ea7b5692c0341980740556f585dec59f0bb7bab7d3 
+
+root@uat-1:/# kubectl get nodes
+error: no configuration has been provided, try setting KUBERNETES_MASTER environment variable
+
+//删除节点
+kubectl drain node5 --delete-local-data --force --ignore-daemonsets
+kubectl delete node node5
+
+
+//添加KUBERNETES_MASTER环境变量
+vim ~/.bashrc
+export KUBECONFIG=/etc/kubernetes/admin.conf
+source ~/.bashrc
+
+//安装flannel网络插件
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
+The connection to the server raw.githubusercontent.com was refused - did you specify the right host or port?
+下载：
+kube-flannel.yml
+kubectl apply -f kube-flannel.yml
+
+//测试master是否运行
+kubectl get cs
+kubectl get nodes
+
+查看kubeletlog
+journalctl -u kubelet | tail -n 300
+
+
+ systemctl start etcd
+ systemctl start docker
+ systemctl start kube-apiserver
+ systemctl start kube-controller-manager
+ systemctl start kube-scheduler
+ systemctl start kubelet
+ systemctl start kube-proxy
+ 
+ node:
+ 安装docker
+ yum install -y kubelet kubeadm kubectl
+ //添加KUBERNETES_MASTER环境变量
+vim ~/.bashrc
+export KUBECONFIG=/etc/kubernetes/admin.conf
+source ~/.bashrc
+kubeadm join 10.16.34.80:6443 --token ymco47.gimtz3xqaihzbhcm \
+    --discovery-token-ca-cert-hash sha256:ab0a413535a6026cfa91d4ea7b5692c0341980740556f585dec59f0bb7bab7d3 
+/***************************************end***********************************************/
+//为docker私有仓添加注册到k8s
+https://kubernetes.io/zh/docs/tasks/configure-pod-container/pull-image-private-registry/
+kubectl create secret docker-registry regcred --docker-server=https://core.harbor.cz.shenlan.com/ --docker-username=rv-owl --docker-password=r1QXkWu2tY --docker-email=zhangzuoyi@deepblueai.com
+
+//创建deployment
+kubectl create deployment owl-service --image=core.harbor.cz.shenlan.com/rv-owl-uat/owl-service-uat:8 --dry-run -o yaml > owl_deploy.yaml
+kubectl apply -f owl_deploy.yaml
+kubectl get pods -o wide
+kubectl get deployment
+kubectl delete deployment owl-service
+kubectl describe pod owl-service-d957988bd-4j7hg
+//获取pod的ip和port
+kubectl get endpoints
+kubectl logs owl-service-7994f8f5df-chmnt
+**********************************************************************************************************************************
+创建dashboard
+kubectl delete -f dashboard-controller.yaml
+kubectl delete -f dashboard-service.yaml
+kubectl create -f dashboard-controller.yaml
+kubectl create -f dashboard-service.yaml
+
+kubectl -n kube-system edit service kubernetes-dashboard
+kubectl get service
+kubectl -n kube-system get service kubernetes-dashboard
+kubectl get pods --all-namespaces -o wide
+kubectl get pods -n kube-system
+kubectl get pod -n kube-system -o wide
+kubectl get pods -n default
+kubectl get ingress --all-namespaces -o wide
+//生成dashboard1.8的docker image
+https://www.jianshu.com/p/589c11488bab
+kubectl create -f k8s-admin.yaml
+kubectl get secret -n kube-system
+kubectl describe secret dashboard-admin-token-jc8t5 -n kube-system
+//为dashboard创建证书：
+https://www.cnblogs.com/harlanzhang/p/10045975.html
+https://www.qikqiak.com/post/update-kubernetes-dashboard-more-secure/
+#1、查看kubernetes-dashboard 容器跑在哪台node节点上，这里跑在docker-slave2上
+root@docker-master1 pki]# kubectl get pod -n kube-system -o wide
+#2、在docker-slave2节点上查看kubernetes-dashboard容器ID
+root@docker-slave2 ~]# docker ps | grep dashboard
+#3、查看kubernetes-dashboard容器certs所挂载的宿主主机目录
+[root@docker-slave2 ~]# docker inspect -f {{.Mounts}} 384d9dc0170b
+[{bind  /var/lib/kubelet/pods/ab0282ec-abab-4e0f-9c1a-2b1a9cf20303/volumes/kubernetes.io~secret/kubernetes-dashboard-certs /certs  ro false rprivate} ......
+]
+
+#4、这里以私有证书配置，生成dashboard证书
+openssl genrsa -des3 -passout pass:x -out dashboard.pass.key 2048
+openssl rsa -passin pass:x -in dashboard.pass.key -out dashboard.key
+openssl req -new -key dashboard.key -out dashboard.csr
+openssl x509 -req -sha256 -days 365 -in dashboard.csr -signkey dashboard.key -out dashboard.crt
+#5、将生成的dashboard.crt  dashboard.key放到certs对应的宿主主机souce目录
+scp dashboard.crt dashboard.key 192.168.20.214:/var/lib/kubelet/pods/ab0282ec-abab-4e0f-9c1a-2b1a9cf20303/volumes/kubernetes.io~secret/kubernetes-dashboard-certs
+#6、重启kubernetes-dashboard容器
+docker restart 384d9dc0170b
+
+kubectl create -f k8s-admin.yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-dashboard
+  labels:
+    k8s-app: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: kubernetes-dashboard
+  namespace: kube-system
+  
+//获取token
+$ kubectl get secret -n kube-system|grep admin-token
+admin-token-d5jsg                  kubernetes.io/service-account-token   3         1d
+$ kubectl get secret admin-token-d5jsg -o jsonpath={.data.token} -n kube-system |base64 -d
+# 会生成一串很长的base64后的字符串
+
+root@uat-1:/data/k8sConfigFile/dashboardCer# kubectl get secret -n kube-system
+root@uat-1:/data/k8sConfigFile/dashboardCer# kubectl describe secret kubernetes-dashboard-token-zn2cr -n kube-system
+Name:         kubernetes-dashboard-token-zn2cr
+Namespace:    kube-system
+Labels:       <none>
+Annotations:  kubernetes.io/service-account.name: kubernetes-dashboard
+              kubernetes.io/service-account.uid: 5d4d6d63-d954-4451-83a4-e99787149660
+
+Type:  kubernetes.io/service-account-token
+
+Data
+====
+ca.crt:     1025 bytes
+namespace:  11 bytes
+token:      eyJhbGciOiJSUzI1NiIsImtpZCI6InBuTkY4TVdsc2NHNXh6LWsyUHVMTkVpcnY3VXNqWmZDRGZOX2lSaDEwTkkifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJhZG1pbi10b2tlbi1raGs1diIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJhZG1pbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjYxMTQ1YTBjLTk1OGQtNDJkYi1hNDVlLWNkMTUwYWY0Y2RlNSIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlLXN5c3RlbTphZG1pbiJ9.gEk5Ln66XDhvKY2XtBk9vAUud2s0OYTUZk92o-SmzG0q4YqzOzSHdRowyUAbtSj87wkzrxxZ5zkBmUvzBjzx0sMRbagPs5ZNyUK7HH6Vq4xs-ciowxpoe_Ffz-LmfmYSc0eljAb5yEGsOoxCOm9NacrJAMRiFeVrS6U_xOlYJRx0zm0TNkhvRkpcBIDn4IETlFK7Rp7DLuYivox-8tmyiAE8htH6wRc8QQ3xoHszNWj91XQ8pB6qOY6Ctb8A8z0spUfCQ_6xrrAtXZBJQ-7HpITd_gNyBkYAodwmLVn38WeKcQCa5O4a41XqBIcXQZEmZaAqikrMfwy4kOMAhg9xUQ
+
+
+/**********************************************************
+
+kubectl exec -it deployment/nginx-ingress-controller -n kube-system /bin/bash
+
+
+k8s的namespace的作用：
+
+gerrit、harbor、jenkines、maven、git、k8s 、docker
+
+cd java/owl
+mvn clean install -U -pl owl-${module} -am -amd -Dmaven.test.skip=true -Dspring.profiles.active=uat -Ddockerfile.tag="$BUILD_NUMBER"
+HARBOR="core.harbor.cz.shenlan.com"
+docker login --username rv-owl --password r1QXkWu2tY ${HARBOR}
+TAG="$BUILD_NUMBER"
+HARBOR_PROJECT="${HARBOR}/rv-owl-uat"
+K8SNAMESPACE="rv-owl"
+
+docker tag deepblueai/owl-${module}-uat:latest ${HARBOR_PROJECT}/owl-${module}-uat:${TAG}
+docker push ${HARBOR_PROJECT}/owl-${module}-uat:${TAG}
+
+
+#!/bin/sh
+if [ ! -d "/data/owl_app_master/" ]; then
+ sudo mkdir -p /data/owl_app_master/
+fi
+if [ ! -d "/data/owl_app_master/owl-${module}}" ]; then
+ sudo mkdir -p /data/owl_app_master/owl-${module}
+fi
+sudo cp -r /data/owl-${module}/owl_deploy.yaml /data/owl_app_master/owl-${module}
+cd /data/owl_app_master/owl-${module}
+sudo kubectl delete --kubeconfig /etc/kubernetes/admin.conf -f owl_deploy.yaml
+sudo sed -i '1,100s/rv-owl-uat\/owl-${module}-uat:.*/rv-owl-uat\/owl-${module}-uat:${BUILD_NUMBER}/g'  /data/owl-${module}/owl_deploy.yaml
+sudo cp -r /data/owl-${module}/owl_deploy.yaml /data/owl_app_master/owl-${module}
+sudo kubectl apply --kubeconfig /etc/kubernetes/admin.conf -f  owl_deploy.yaml
+exit
+
+//参考
+https://www.jianshu.com/p/f2d4dd4d1fb1
+/*****************************************
+flannel.1
+
+pod ip port：
+--pod-network-cidr=10.244.0.0/16
+10.244 node pod上网段
+
+service ip port：
+
+ingress ip port：
+
+docker ip：
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

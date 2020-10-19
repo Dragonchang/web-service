@@ -1,0 +1,35 @@
+EMQ 安装：
+    yum install -y yum-utils \
+        device-mapper-persistent-data \
+        lvm2
+	yum-config-manager \
+		--add-repo \
+		https://repos.emqx.io/emqx-ce/redhat/centos/7/emqx-ce.repo
+	yum install -y emqx
+
+dashboard登录后提示URL not Found
+plugin中的emqx_management.conf
+management.listener.http = 8090 
+
+
+sudo vi /etc/emqx/acl.conf
+{allow, all, subscribe, ["$SYS/brokers/+/clients/#"]}.
+
+sudo systemctl restart emqx.service
+
+
+systemctl start|stop|restart emqx.service
+1.为什么后台服务要用这种代理而且是订阅/发布的方式和设备通信？
+  http 是同步消息request/reponse
+  http 单向的，必须客户端发起请求，客户端没有办法被动接收指令
+  http 没有办法实现群发的这些功能
+  http协议非常重
+  
+  
+  http/websocker
+  http：不是长连接
+  websocket：java 后端不用管理和设备的连接
+  
+  ip.addr == 10.16.33.197
+  
+

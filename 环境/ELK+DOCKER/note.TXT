@@ -1,0 +1,87 @@
+主机IP:
+10.16.33.136
+user：
+deepblue
+
+系统版本：
+Ubuntu 16.04.6 LTS
+
+主机磁盘空间：
+deepblue@uat-2:/$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+udev            7.9G     0  7.9G   0% /dev
+tmpfs           1.6G  8.6M  1.6G   1% /run
+/dev/vda1        40G  1.6G   39G   4% /
+tmpfs           7.9G     0  7.9G   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+tmpfs           7.9G     0  7.9G   0% /sys/fs/cgroup
+/dev/vdb        500G   33M  500G   1% /data
+tmpfs           1.6G     0  1.6G   0% /run/user/1001
+
+
+elasticsearch log 目录可以作为用户输入的参数来指定，或者查询最大文件目录来指定。
+
+
+使用spring boot来发送log到logstash
+
+elasticsearch 
+问题：
+API
+//kibana索引
+/.kibana
+
+//节点状态
+/_nodes/stats
+
+//查看不健康状态
+_cat/indices?v
+_cluster/health/<index>
+_cluster/health?pretty=true
+/.kibana/_search
+
+1.docker宿主机不能访问docker内服务，docker自己可以访问（完成）
+--net=host
+
+2.宿主机可以访问，外网访问不了（完成）
+  network.host: 10.16.33.136
+
+3.修改data和log目录访问失败（完成）
+   -v /data:/data 和创建777权限
+
+4.修改配置
+apt-get update
+apt-get install vim
+
+vi elasticsearch.yml
+
+path.data: /data/ELlib/elasticsearch/data
+
+path.logs: /data/ELlog/elasticsearch
+
+network.host: 10.16.33.136
+docker restart
+4.分不同的项目来查询log
+filebeat->logstash->es（需要部署filebeat到微服务节点）
+
+//elasticsearch
+docker build -t elasticsearch-6.4.3 ./elasticsearch
+sudo docker run -d -it --restart=always --net=host -v /data:/data -p 9200:9200 elasticsearch-6.4.3
+
+path.data: /data/ELlib/elasticsearch/data
+path.logs: /data/ELlog/elasticsearch
+network.host: 10.16.33.136
+jvm.options
+-Xms8g
+-Xmx8g
+
+
+
+//logstash：
+docker run -it --restart=always --net=host -p 9600:9600 -v "/data/ELK/logstash:/etc/logstash/conf.d"  logstash-6.4.3
+
+//kibana：
+docker run -d -it --restart=always --net=host -p 5601:5601 kibana-6.4.3
+elasticsearch.url = 
+
+systemctl daemon-reload
+systemctl restart docker

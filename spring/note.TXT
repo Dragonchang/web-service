@@ -1,0 +1,146 @@
+
+@GetMapping
+package org.springframework.web.servlet.mvc.method.annotation;
+RequestMappingHandlerAdapter
+
+
+
+package org.apache.tomcat.util.net;
+/**
+ * NIO tailored thread pool, providing the following services:
+ * <ul>
+ * <li>Socket acceptor thread</li>
+ * <li>Socket poller thread</li>
+ * <li>Worker threads pool</li>
+ * </ul>
+ */
+public class NioEndpoint extends AbstractJsseEndpoint<NioChannel,SocketChannel> {
+
+*******************************************************************
+spring boot注解：
+
+
+*******************************************************************
+main
+
+"main@1" prio=5 tid=0x1 nid=NA runnable
+  java.lang.Thread.State: RUNNABLE
+	  at org.apache.tomcat.util.net.NioEndpoint.startInternal(NioEndpoint.java:275)
+	  at org.apache.tomcat.util.net.AbstractEndpoint.start(AbstractEndpoint.java:1230)
+	  at org.apache.coyote.AbstractProtocol.start(AbstractProtocol.java:592)
+	  at org.apache.catalina.connector.Connector.startInternal(Connector.java:1035)
+	  at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+	  - locked <0x1491> (a org.apache.catalina.connector.Connector)
+	  at org.apache.catalina.core.StandardService.addConnector(StandardService.java:227)
+	  at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.addPreviouslyRemovedConnectors(TomcatWebServer.java:278)
+	  at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start(TomcatWebServer.java:197)
+	  - locked <0x1492> (a java.lang.Object)
+	  at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.startWebServer(ServletWebServerApplicationContext.java:297)
+	  at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.finishRefresh(ServletWebServerApplicationContext.java:163)
+	  at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:553)
+	  - locked <0x1493> (a java.lang.Object)
+	  at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:141)
+	  at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:747)
+	  at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:397)
+	  at org.springframework.boot.SpringApplication.run(SpringApplication.java:315)
+	  at org.springframework.boot.SpringApplication.run(SpringApplication.java:1226)
+	  at org.springframework.boot.SpringApplication.run(SpringApplication.java:1215)
+	  at com.example.demo.DemoApplication.main(DemoApplication.java:18)
+
+
+
+"main@1" prio=5 tid=0x1 nid=NA runnable
+  java.lang.Thread.State: RUNNABLE
+	  at org.apache.tomcat.util.net.Acceptor.<init>(Acceptor.java:39)
+	  at org.apache.tomcat.util.net.AbstractEndpoint.startAcceptorThread(AbstractEndpoint.java:1235)
+	  at org.apache.tomcat.util.net.NioEndpoint.startInternal(NioEndpoint.java:281)
+	  at org.apache.tomcat.util.net.AbstractEndpoint.start(AbstractEndpoint.java:1230)
+	  at org.apache.coyote.AbstractProtocol.start(AbstractProtocol.java:592)
+	  at org.apache.catalina.connector.Connector.startInternal(Connector.java:1035)
+	  at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+	  - locked <0x1486> (a org.apache.catalina.connector.Connector)
+	  at org.apache.catalina.core.StandardService.addConnector(StandardService.java:227)
+	  at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.addPreviouslyRemovedConnectors(TomcatWebServer.java:278)
+	  at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.start(TomcatWebServer.java:197)
+	  - locked <0x1487> (a java.lang.Object)
+	  at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.startWebServer(ServletWebServerApplicationContext.java:297)
+	  at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.finishRefresh(ServletWebServerApplicationContext.java:163)
+	  at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:553)
+	  - locked <0x1488> (a java.lang.Object)
+	  at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:141)
+	  at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:747)
+	  at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:397)
+	  at org.springframework.boot.SpringApplication.run(SpringApplication.java:315)
+	  at org.springframework.boot.SpringApplication.run(SpringApplication.java:1226)
+	  at org.springframework.boot.SpringApplication.run(SpringApplication.java:1215)
+	  at com.example.demo.DemoApplication.main(DemoApplication.java:18)
+
+
+    protected void startAcceptorThread() {
+        acceptor = new Acceptor<>(this);
+        String threadName = getName() + "-Acceptor";
+        acceptor.setThreadName(threadName);
+        Thread t = new Thread(acceptor, threadName);
+        t.setPriority(getAcceptorThreadPriority());
+        t.setDaemon(getDaemon());
+        t.start();
+    }
+
+
+ResourceLoader
+DefaultResourceLoader
+AbstractApplicationContext                     ApplicationContext
+GenericApplicationContext                      ConfigurableApplicationContext
+GenericWebApplicationContext              ConfigurableWebServerApplicationContext
+ServletWebServerApplicationContext
+AnnotationConfigServletWebServerApplicationContext
+createApplicationContext()
+*************************************************
+Accepter:
+public class Acceptor<U> implements Runnable {
+
+"http-nio-8080-Acceptor@5234" daemon prio=5 tid=0x26 nid=NA runnable
+  java.lang.Thread.State: RUNNABLE
+	  at org.apache.tomcat.util.net.NioEndpoint$Poller.register(NioEndpoint.java:654)
+	  at org.apache.tomcat.util.net.NioEndpoint.setSocketOptions(NioEndpoint.java:427)
+	  at org.apache.tomcat.util.net.NioEndpoint.setSocketOptions(NioEndpoint.java:72)
+	  at org.apache.tomcat.util.net.Acceptor.run(Acceptor.java:115)
+	  at java.lang.Thread.run(Thread.java:748)
+
+
+
+********************************************************************
+
+ClientPoller
+NioEndpoint
+    /**
+     * The socket poller.
+     */
+    private Poller poller = null;
+************************************************************************
+exec
+
+
+HandlerMethod
+InvocableHandlerMethod
+ServletInvocableHandlerMethod
+
+将请求参数对象化
+找到处理请求的bean
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

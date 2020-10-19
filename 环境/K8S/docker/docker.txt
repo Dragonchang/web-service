@@ -1,0 +1,453 @@
+1容器
+虚拟化和容器关系
+1主机级虚拟化
+vmware 好像是物理机一样使用
+Type-1 硬件->vmm
+Type-2 vmware hostos->vmm
+
+内核目的是资源分配和管理，用户应用都是在用户空间的进程中
+
+2每次虚拟机都要装内核，代价太大了。那就直接在用户空间进行虚拟化，也就是容器虚拟化技术
+
+减少中间层和中间环节就是提升效率
+
+lxc：LinuX Container  chroot，根切换；  namespaces：名称空间  CGroups：控制组   
+
+资源可以在用户空间进行分配，也可以做核心绑定
+
+2docker
+docker使用lxc创建容器，自己去连到服务器中下载一个镜像，到本地，然后基于镜像启动容器
+
+docker一个容器内只运行一个进程。打包成image 然后docker run结束
+
+镜像构建：分层构建，联合挂载，都是只读的，要想改可以加一层就是能读能写的层。删不了，可以不可见
+写就是写时复制。
+
+容器迁移到其它宿主机怎么办：不要再容器本地保存有效数据，再外部挂载挂个共享存储。
+
+容器有生命周期。
+
+依赖关系，宿主机哪个空闲，所以有一个依赖关系和从属关系，得要容器编排工具。k8s
+
+libcontainer代替lxc
+然后标准化为runc
+
+2docker基础
+
+cs架构
+只允许客户端是本地的。
+
+镜像仓库默认为docker.hub
+
+仓库名也就叫nginx，标签名就是镜像名。
+
+资源对象 images containers nerworks volumes plugins 都可以增删改查
+
+3安装使用docker
+
+配置加速镜像
+
+命令：
+docker version
+
+docker info 环境信息 容器多少个
+
+docker search nginx 去仓库中搜索的 有/的是个人注册的仓库，没用的是官方的
+docker pull			下载到本地
+docker image search
+docker image pull nginx:1.14-alpine
+alpine版本是体积很小的版本，会有问题，生产环境尽量自己做镜像，并带调试工具的
+docker image ls ==docker images
+可以建私有仓库
+docker image rm 
+docker ps==docker container ls 查看所有容器
+
+docker container run [options] image [command] [..args]
+docker network ls 网络
+docker接到bridge上了
+docker run --name b1 -it busybox
+docker inspect containername
+docker start containername 重启容器
+docker kill containername 强制终止 会导致数据丢失
+docker rm containername 删除了，彻底没了
+docker run --name nginx1 -d nginx 后台运行，image没用会自动去pull
+程序不能再容器中运行再后台，一启动就终止
+docker run --name redis1 -d redis:4-alpine
+
+加了 -d 参数默认不会进入容器，想要进入容器需要使用指令 docker exec（下面会介绍到）
+docker exec -it redis1 /bin/sh 绕过docker进入到程序内部
+
+镜像含有容器启动的文件系统和内容。
+
+多个image构建成一个完整的容器。
+
+aufs 实现 unionfs 依然很烂
+
+aufs不是内核的，得打补丁然后编译使用
+
+overlays并到linux内核
+
+除了aufs还支持devicemapper和vfs方式支持
+
+必须明确指示https如果http能用，那得指明配置
+
+dockerhub镜像都不符合我们的需要，我们得自己定制
+
+我们做镜像都是最小化的baseimage来的
+
+docker pull quay.io/coreos/flannel:v0.10.0-amd64
+带了服务器仓库名和名称空间还有tag
+
+生产镜像
+1dockerfile
+2docker commit会把容器可写层创建镜像层
+3 dockerhub上的automaterbuild
+
+容器运行中，然后docker commit -p containername
+docker tag imageId ccw/web:1.5.6 对镜像打标签
+
+docker tag 库:tag 库:新tag
+
+容器只运行一个进程必须运行再前台，不然启动就失败
+
+启动容器以后默认运行的命令 command
+
+docker commit -a "ccw <56556@qq.com>" -c "CMD" '["/bin/httpd","-f","-h","/data/html"]' -p containername newname:v0.0-1
+
+对容器启动命令进行修改，增加作者，并暂停
+
+docker login 登录docker hub ccwhan ccw123580
+
+docker push ccwhan/redis 推到默认的dockerhub
+
+镜像的导入和导出
+
+
+放入阿里云
+
+先登录阿里云服务器地址 
+push都要加阿里云的镜像服务器，不然默认到dockerhub
+
+docker logout 登出
+
+docker save -o ccw.gz ccwhan/redis:v0 ccwhan/redis:v1 打包
+docker load -i ccw.gz 导入
+
+docker虚拟化网络概述
+四个网卡，给俩个名称空间。
+如果名称空间超过网卡怎么办
+可以用虚拟网卡，转发功能。模拟出插到交换机上。
+桥接模式：可以和宿主机 能上网
+nat：能上网，不能和宿主机通信
+host-only 不能上网，能和宿主机通信
+
+1同一个宿主机上，俩个容器通信，建一个虚拟交换机上，交换机也可以互联。还有路由器如何实现
+路由器单独的名称空间。在做一个容器，容器做路由使用。	做报文转发，容器直接联系
+2不同宿主机，容器间通信。物理网卡作为交换机来用。   	
+效率很低。经过很多层。终端不知道对方的存在，都是再做转发。
+桥接不设防，直接就是通信，nat方式，都缩头乌龟。
+
+使用overlaynetwork
+隧道转发，封装了报文。docker network ls
+联盟网络，容器共享网卡。
+bridge
+host 可以共享宿主机的网卡。
+null 意味着没有网卡
+四个容器 连接再docker0虚拟网卡上。
+
+docker container inspect containername 查看容器的网络模式
+
+docker run --name b1 -it --network bridge --rm busybox:latest
+--rm 退出就删除容器
+
+docker run -h t1.mang.com 注入进来的主机名
+自动解析
+
+docker run --dns 114.114.114.114 注入指定ip地址
+
+docker run --dns-search linux.io 注入search
+
+docker run --add-host www.ccw.com:1.1.1.1 自动注入hosts解析记录
+
+redis给另外节点访问，得暴露出来
+
+docker run --name t1 --rm -p 80 imagename
+然后外部访问宿主机的端口映射到容器的80端口。
+通过iptables查看
+docker port t1 可以查看映射地址
+
+指定映射
+docker run -p 172.20.0.67::80 imagename 指定宿主机固定的ip暴露端口
+访问还是宿主机ip:映射端口
+
+指定宿主机端口
+
+docker run -p 80:80 imagename 任意宿主机的80端口
+
+docker run -p 172.20.0.67:8080:80 访问宿主机的8080端口
+
+联盟式
+
+docker run --name b2 --network container:b1 -it --rm busybox
+网络共享
+就像同一主机上的俩个进程。但是根文件系统和user隔离
+
+docker run --name b2 --network host -it --rm busybox
+共享宿主机的网络空间
+
+改不要再默认再docker0上的网桥
+
+改docker配置文件
+
+加bip地址 使地址不是172开始的
+
+外部可以docker其它宿主机的docker命令
+
+改配置文件 hosts
+
+docker -H 172.20.0.67:2375 ps
+
+创建桥
+
+docker network create -d bridge --subnet "172.26.0.0/16" --gateway "172.26.0.1" mybr0
+网络叫myrb0
+
+docker run --name t1 -it --net mybr0 imagename
+
+一个宿主机上的俩个交换机。之间能通信吗？
+
+可以直接通信的。
+
+docker的存储卷
+
+联合挂载文件系统。
+
+不能写在容器自己的可写层之上，使用宿主机上的文件系统的目录和容器内的文件建立绑定关系。
+
+可以使容器之间共享数据。
+
+默认是宿主机的目录。
+
+1绑定挂载卷 手动指定
+
+docker run --name b1 -it -v /data/volumes/b2:/data busybox 	前面是宿主机
+2docker 管理卷。约定特定的目录下。指定容器目录，不需宿主机目录
+
+docker run --name b2 -it -v /data busybox 
+
+docker inspect b2 在Mounts里面有说明
+
+模板过滤
+
+docker inspect  -f {{.Mount}} b2 .是json层级关系
+
+俩个容器关联一个宿主机存储卷
+
+复制b2的一模一样的存储卷。
+
+创建一个容器，不允许即可，给人家复制就行了。
+
+tomcat 在lo上，nginx监听到共享上，所以访问共享的到nginx，然后nginx到tomcat种。
+
+docker run --name b1 -it -rm --volumes-from b2 busybox 复制
+
+容器编排： 每个容器的属性，然后按需创建起来，然后定义容器的依赖关系。
+
+docker-compose 单机容器编排
+
+dockerfile理解
+
+别人的镜像不符合我们的要求，我们必须得改配置。
+
+1基于容器做镜像
+好几个容器难道要很多镜像吗？
+
+2dockerfile定义
+
+预设环境进程进行替换环境变量然后退出，启动主进程。
+也可以直接读取系统上的环境变量直接启动主进程。。。。
+#顺序执行指令 第一个非注释行指令必须是FROM
+指令(大写，本身不区分大小写) 参数  一条指令一层，所以惜字
+#已存在的镜像基础之上 不能是父目录，命令为Docfile
+
+可以使用变量然后build 时传进去
+
+${NAME:-tom} 默认值
+${NAME:+tom} 有值使用tom
+$NAME 引用变量 or ${NAME}
+
+#基准镜像，所基于基准镜像运行环境，不存在会去hub上下载,基于镜像构建指令
+#FROM cangku:tag
+#FROM cangku@hashma
+FROM harbor.deepblueai.com/library/openjdk:8-jdk-alpine
+#镜像作者 
+#MAINTAINER "ccw <445@qq.com>"
+#LABEL MAINTAINER="ccw <445@qq.com>" 
+MAINTAINER deepblueai/owl
+#COPY 从宿主机复制文件到镜像文件  src如果是目录，自身不会被复制
+#如果多个src 或者src使用通配符，dest必须是一个目录，且以/结尾
+#如果dest目录不存在，会自动创建。
+#COPY ./index.html /data/web/html/ 源文件必须是dockfile子目录或者当前目录
+#ADD和COPY很相似，ADD支持url路径，src如果是本地tar文件，会自动展开为目录，如果是url的tar不会展开
+ADD target/owl-business.jar owl-business.jar
+#定义build过程中要运行的命令，比如需要解压tar文件之类的，需要在编译的时候就解压
+#RUN 也可以定义多行 && \ ，一行一个命令
+#格式1 RUN command 意味着是shell进程启动的
+#格式2 RUN ["/bin/bash","-c","运行的命令","param1"]
+RUN echo "Asia/Shanghai" >/etc/timezone
+RUN sh -c 'touch /owl-business.jar'
+#为镜像定义变量，可位于其后的指令所调用，可定义多个，不用=也可以，但后面的value都为是第一个key的值，一次只能设一个变量
+#\续行
+#ENV DOC_ROOT /data/web/html/
+ENV JAVA_OPTS=""
+#定义镜像启动容器时，并且没指定运行命令时默认启动的命令。可以给多个，只要最后一个生效
+#格式 CMD command 进程不为1
+#格式2 CMD ["/bin/shell","-c","","param1","param2"] 进程为1，不会以shell作为父进程，image inspect shell父进程，在shell命令直接没了，因为shell变量无法读取$变量了。
+#格式3 CMD ["param1","param2"]
+CMD exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /owl-business.jar
+#打开监听端口，实现和外部通信
+#EXPOSE 80/tcp 默认tcp docker动态绑定到宿主机的随机端口
+#docker port containername 查看暴露端口
+#docker run -P     暴露需要暴露的端口 大P，镜像中有才去暴露
+EXPOSE 8206
+
+
+docker build -t ccwhan/redis:v0.1-1 ./     -t直接打标签
+docker build可以给变量传值
+
+docker run --name name1 --rm -P -e ENVNAME="VALUE" ccwhan/redis:vi.0-1 启动容器改变定义的环境变量
+docker run  printenv        打印变量
+
+docker容器运行单个应用。
+比如运行redis，其是shell的子进程。
+容器中shell进程为1，一旦shell退出，进程全部退出。
+shell父进程，在shell下创建的进程都是shell 的子进程，到后台去还是shell的子进程，
+shell退出，nginx还是会退出，如何剥夺呢，nobub command &
+容器中如何呢？
+shell的id为1也行，exec command 顶替shell的id为1，取代shell的位置，shell退出。
+
+不加CMD 默认为shell，加了用自己的，启动后就不允许shell了
+
+但是可以用exec额外登录进去
+
+docker exec -it tinweb2 /bin/sh  默认使用COMMAND 将取代shell进程号为1，bin/sh 为id为2的子进程
+
+exit是退出进程，如果是shell启动，exit会退出父进程，容器会被kill
+
+exit是退出容器，退出ps查不到，进去得docker start 容器名/容器id
+先按，Ctrl+P;再按，Ctrl+Q（快捷方式）	退出容器，ps能查到，还在后台运行	docker attach 容器名/容器id
+
+docker run 可以指定自己的命令，可以覆盖掉CMD定义的命令
+
+不允许覆盖怎么办呢
+
+#DOCFILE ENTRYPOINT指令 和CMD类似，但是不可以让run覆盖命令，也可以传参
+
+ENTRYPOINT /bin/httpd -f -h ${WEB_DOC_ROOT}
+
+docker run --name tinyweb2 -it -P ting:v0-3 param参数给point
+
+也可以覆盖ENTRYPOINT加选项，CMD 和 ENTRYPOINT cmd会当作参数传给ENTRYPOINT
+docker run ... --entrypoints ls /data/web... 覆盖掉file中的命令
+
+#外部测试工具监控容器健康与否,查看主进程健康与否，HEALTHCHECK命令
+#HEALTHCHECK --interval =5m --timeout=3s \
+			CMD curl -f http://localhost/ || exit 1 
+			#0成功1不健康3拒绝
+
+
+#ARG指令，给build时期传参的 docker build 不能传env变量，只能传ARG 变量了。
+#run 是可以传变量的
+docker --build-arg nginx
+
+#ONBUILD指令 定义一个触发器
+#不是自己build的时候执行，是被别人引用时别人调用build时才执行ONBUILD指令。
+ONBUILD ADD 一个文件很慢，然后人家用你的就一直在build
+
+别人FROM 你的时候，然后触发ONBUILD指令，完蛋了
+
+可以读github上的别人写的dockerfile
+
+ 
+建立私有的仓库 https工作的，docker除非你告诉他使用http
+
+docker-distribution
+
+regristry运行在容器中，所以得有网络存储卷。
+yum install docker-registry 也可以了
+
+也可以使用docker容器运行
+
+docker tag myweb:v0.3-11 node02.magedu.com:5000/myweb:v0.3-11
+
+docker push node02.magedu.com:5000/myweb:v0.3-11
+
+配置docker配置项加到insecure registry中
+
+每一层镜像都是单独推送。
+
+harbor很漂亮的企业级的仓库服务器程序。
+
+k8s 扩缩容，自动部署，故障修复，全是自动的，流量监控。无状态好搞，有状态k8s不要搞
+
+harbor需要docker compose单机编排工具，写编排脚本
+
+github上有vmware harbor 
+
+从github上下下来
+tar解压
+vim /usr/local/harbor/habor.cfg
+hostname=node.cc.com
+等等
+上传镜像发邮件通知，还有私钥，密码等等，mysql
+install.sh
+harbor.tar.gz中有很多镜像
+
+yum -y install docker-compose
+http://ip:port/harbor/sign-in 登录就进去了
+
+docker-compose pause  停止docker-compose服务,到compose目录中执行命令
+docker-compose unpause
+docker-compose stop
+docker-compose scale
+				logs	日志
+				build 镜像
+单机可以用，以后用k8s管理harbor
+
+docker资源和安全相关
+
+默认容器可以耗尽内核所有的资源。
+有个工具可以提供cpu 内存和io，限制容器的资源使用
+
+docker daemon的OOM优先级，以免被内核正法。
+
+强制kill容器
+
+docker run --memory=4m    （ram物理内存）
+--memory-swap   -memory  
+正数s			正数m  总为s，ram为m，swap为s-m
+0				正数m			未设置swap
+unset			正数m			swap为2*m
+-1				正数m			主机所有的swap空间
+
+进程调度器。进程谁优先运行
+
+docker run --cpus=value 最多使用几核，不限制哪个核上，凑满即可
+--cpuset-cpus 哪个cpu核心上
+--cpu-shares
+share 你要按比例，不要都给我
+
+lscpu
+
+docker run --name stress -it --rm -m 256m lorel/docker-stress-ng stress --vm 2
+docker run --name stress -it --rm --cpus 2 lorel/docker-stress-ng stress --cpu 8
+cpu压力测试
+docker top stress 一个容器资源占用
+docker stats
+
+也可以调--oom的优先级和score
+
+
+
+
+

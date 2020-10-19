@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: owl-operation
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8205
+      nodePort: 31008
+  selector:
+    app: owl-operation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: owl-operation
+  name: owl-operation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owl-operation
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: owl-operation
+    spec:
+      containers:
+      - image: core.harbor.cz.shenlan.com/rv-owl-uat/owl-operation-uat:74
+        name: owl-operation-uat
+        resources: {}
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "uat"
+      imagePullSecrets:
+      - name: regcred
+status: {}

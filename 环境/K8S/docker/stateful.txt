@@ -1,0 +1,421 @@
+存储卷
+节点故障了，存储卷依然有问题。
+得有一个脱离节点的存储设备
+
+存储卷属于pod 不属于容器
+
+1pod本地存储卷 emptyDir 当缓存 pod删除，这个目录也会删除
+2hostPath 宿主机存储
+3网络存储 nfs cifs 
+分布式存储
+云存储
+
+pvc 傻瓜式存储配置  存储即服务
+pvc是申请 关联到 pod名称空间 -》 pv存储系统上的空间（由存储类自动生成pv）
+
+1pod上定义volumes
+2容器上还得挂载存储卷
+
+pod资源文件
+
+spec:
+	containers:
+	- name: myapp
+	  volumeMounts:
+	  - name: html
+	    mountPath: /data/web/html/      //挂到哪去
+	volumes:
+	- name: html
+	  emptyDir: {}
+	
+gitrepo
+
+github中的数据 clone 到 本地来作为存储卷定义到 pod上，建立在emptydir基础之上。
+
+作修改时，并不会同步到git仓库中，仓库改变，本地也不会改变。
+
+hostpath 存储卷
+
+宿主机的文件系统和pod建立关联关系， pod和此存储卷没关系，建立在节点之上
+
+spec:
+	containers:
+	- name: myapp
+	  volumeMounts:
+	  - name: html
+	    mountPath: /usr/share/nginx/html/      //挂到哪去
+	volumes:
+	- name: html
+	  hostpath:
+		path: /data/pod/volume1
+		type: DirectoryOrCreate   //自动创建
+		
+172.20.0.76 sotre01 作为nfs网络存储卷
+
+yum -y install nfs-utils
+
+mkdir /data/volumes -pvc
+
+vim /etc/exports
+
+/data/volumes 172.20.0.0/16(rw,no_root_squash)
+
+systemctl start nfs
+
+ss -tnl 监听2049
+
+node01 node02 也要安装nfs
+
+mount -t nfs store01:/data/volumes /mnt  //挂载到存储设备
+
+定义pod
+
+spec:
+	containers:
+	- name: myapp
+	  volumeMounts:
+	  - name: html
+	    mountPath: /usr/share/nginx/html/      //挂到哪去
+	volumes:
+	- name: html
+	  nfs:
+		path: /data/volumes
+		server: store01.magedu.com
+		
+nfs 节点故障，那就没办法了，因为没有做冗余分布式。
+
+pvc 
+
+pod -> volumes -> pvc -> pv -> 各大存储种类
+
+1用户创pvc
+
+kubectl explain pvc   //k8s标准资源，没人用就一直pending pvc和pv是一一对应关系binding
+
+pvc有pv绑定了，可以被多个pod挂载。可以指定访问模式
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+	name: pvc001 
+	namespace: default
+spec:     //访问模型 单路读写 多路只读 多路只读 多个定义
+	accessmModes: ["ReadWriteMany"] //是pv的子集
+	resources:
+		requests:
+			storage: 3Gi
+
+
+
+
+
+
+
+
+2pod挂载pvc
+
+spec:
+	containers:
+	- name: myapp
+	  volumeMounts:
+	  - name: html
+	    mountPath: /usr/share/nginx/html/      //挂到哪去
+	volumes:
+	- name: html
+	  persistenVolumeClaim:
+		claimName: pvc001
+
+3k8s管理员创pv //标准k8s资源   pv被pvc绑定就不能删除
+
+kubectl explain pv
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+	name: pv001     //不属于名称空间的，属于集群级别资源，pvc是名称空间级别
+	labels:
+		name: pv001
+spec:     //访问模型 单路读写 多路只读 多路只读 多个定义
+	nfs:
+		path: /data/volumes/v1
+		server: store01.magedu.com
+	accessmModes: ["ReadWriteMany","ReadWriteOnce"]
+	capacity:
+		storage: 2Gi
+		
+		
+		
+//一个资源文件可以定多个，格式一样
+	
+kubectl get pv
+
+
+
+
+4存储工程师创存储块
+在store01节点上
+
+mkdir v{1,2,3,4,5}
+
+vim /etc/exports
+/data/volumes/v1 172.20.0.0/16(rw,no_root_squash)
+/data/volumes/v2 172.20.0.0/16(rw,no_root_squash)
+/data/volumes/v3 172.20.0.0/16(rw,no_root_squash)
+/data/volumes/v4 172.20.0.0/16(rw,no_root_squash)
+/data/volumes/v5 172.20.0.0/16(rw,no_root_squash)
+
+exports -arv
+
+showmount -e 
+
+5在存储卷上写东西，pod就可以访问了
+
+有一个问题，pvc创建，不一定有满足条件的pv，那怎么样正好满足呢。
+
+pvc申请pv时不针对pv，针对storageClass。标准资源
+
+把存储空间作分类，某一类集群存储资源
+
+pv由存储类来动态生成。
+
+存储结构需要支持restful接口进行动态创建满足pvc的分区和大小。
+
+secret //不是给pod用来存储用的，是用来给集群外部访问集群内部，注入配置使用的
+		//和configMap用法差不多，不过不是明文
+		
+1生成secret
+
+密码定义成secret
+kubelet要认证镜像私服中，私有数据如何提供
+
+kubectl create secret generic mysql-root-password --from-literal=password=123456
+
+kubectl get secret
+
+2挂载pod
+apiVersion: v1
+kind: Pod
+metadata:
+	name: pod-cm-1
+	naspace: default
+	labels:
+		app: myapp
+		tier: frontend
+	annotations:
+		mageedu.com/created-by: "cluster admin"
+spec:
+	containers:
+	-name: busybox
+	 image:
+	 imagePullPolicy: IfNotPresent
+	env:
+	- name: MYSQL_ROOT_PASSWORD
+	  valueFrom:
+		secretKeyRef: 
+			name: mysql-root-password
+			key: password
+
+
+configMap  //当作配置中心，关联到pod中来，可以当作变量注入到配置文件中
+		   // 也可以当存储卷直接挂载到pod镜像读取配置文件的地方，改了map中，其它都可以动态修改
+		   //明文存储的
+		   
+1生成configMap 属于名称空间的资源   配置文件和镜像解耦，将数据注入到pod的容器中使用 1作存储卷2作env传进去
+kubectl create configmap nginx-config --from-literal=nginx_port=8080 --from-literal=server_name=myapp.magedu.com   命令形式
+kubectl get cm
+kubectl describe cm nginx-config
+
+第二种
+server {
+	server_name myapp.magedu.com;
+	listen 80;
+	root /data/web/html;
+
+}
+--from-file=./www.conf key就是文件名，值就是文件的内容
+kubectl get cm nginx-config -o yaml
+
+2挂载pod		
+apiVersion: v1
+kind: Pod
+metadata:
+	name: pod-cm-1
+	naspace: default
+	labels:
+		app: myapp
+		tier: frontend
+	annotations:
+		mageedu.com/created-by: "cluster admin"
+spec:
+	containers:
+	-name: busybox
+	 image:
+	 imagePullPolicy: IfNotPresent
+	env:
+	- name: NGINX_SERVER_PORT
+	  valueFrom:
+		configMapKeyRef: 
+			name: nginx-config
+			key: nginx_port
+	- name: NGINX_SERVER_NAME
+	  valueFrom:
+		configMapKeyRef: 
+			name: nginx-config
+			key: server_name
+kubectl apply -f nginx-config.yaml
+
+kubectl edit cm nginx-config	可以在线编辑
+
+当作存储卷挂到pod上。
+
+apiVersion: v1
+kind: Pod
+metadata:
+	name: pod-cm-1
+	naspace: default
+	labels:
+		app: myapp
+		tier: frontend
+	annotations:
+		mageedu.com/created-by: "cluster admin"
+spec:
+	containers:
+	-name: busybox
+	 image:
+	 imagePullPolicy: IfNotPresent
+	 volumeMounts:
+	 - name: nginxconf
+	   mountPath: /etc/nginx/config.d
+	   readOnly: true
+	volumes:
+	- name: nginxconf
+	  configMap:
+		name: nginx-config
+		
+结果是/etc/nginx/config.d 中有了几个文件，每个文件就是key
+
+conf.d 是nginx读取的配置文件地方
+
+
+配置容器化应用的方式
+1自定义命令参数
+args[]
+2配置文件直接进镜像
+3环境变量
+应用程序支持，entrypoint处理脚本
+4存储卷
+
+statefulSet
+1每一个pod稳定且由网络标识符
+2稳定且持久的存储
+3有序，平滑的部署和扩展
+4有序，平滑的清除和终止
+5有序的滚动更新
+
+三个组件： headless service ，Statefulset，VolumeClaimTemplate
+  
+每一个pod生成申请一个专用的pvc和pv，而不是多个pod使用同一个存储卷
+
+自动生成pvc 但不生成pv
+
+apiVersion: v1
+kind: Service
+metadata:
+	name: myapp
+	labels:
+		app: myapp
+spec:
+	ports: 
+	- port: 80
+	  name: web
+	clusterIp: None
+	selector: 
+		app: myapp-pod
+---
+apiVersion: apps/v1
+kind: Statefulset
+metadata:
+	name: myapp
+spec:
+	serviceName: myapp
+	replicas: 3
+	selector：
+		matchLabels:
+			app: myapp-pod
+	template:  //pod的模板
+		metadata:
+			labels:
+				app: myapp-pod
+		spec:
+			containers:
+			- name: myapp
+			  image: 
+			  ports:
+			  - containerPort: 80
+			    name: web
+			  volumeMounts:
+			  - name: myappdata
+			    mountPath: /usr/share/nginx/html
+	volumeClaimTemplates:
+	- metadata:
+		name: myappdata
+	  spec:
+		accessModes: ["ReadWriteOnce"]
+		storageClassName: "gluster-dynamic"
+		resources:
+			requests:
+				storage: 5Gi
+		
+kubectl apply -f 文件 顺序创建，顺序删除。会一直存在，硬绑同一个pvc
+
+kubectl get sts
+
+为每个pod 创了个PVC
+
+滚动更新
+
+kubectl exec -it myapp-0 -- /bin/sh
+
+nslookup myapp-0.myapp.default.svc.cluster.local
+
+扩容和缩容是一样的
+
+补丁扩缩容，命令扩缩容，清单文件扩缩容
+
+更新策略
+
+kubectl patch sts myapp -p '{"spec":{"updateStrategy":{"rollingUpdate":{"partition":4}}}}'
+ >=4 才会更新先更第四个 到第三个
+ 
+然后更新image
+kubectl patch sts myapp -p '{"spec":{"template":{"spec":{"containers[0]":{"image":"imageversion"}}}}}'
+
+
+
+
+
+
+
+
+			  
+		
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

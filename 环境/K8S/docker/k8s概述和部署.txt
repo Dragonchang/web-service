@@ -1,0 +1,554 @@
+1概述
+1编排工具
+docker compose 对资源池进行编排
+docker swarm 资源池
+docker machine 如何加入swarm资源池，使用这个machine
+2k8s
+DevOps:文化和运动和思想，并不是技术
+CI 持续集成（提交代码中，构建工具自动检测代码仓自动构建，测试工具开始自动测试）
+CD持续交付（自动打包好的放入一个服务中） 
+CD 持续部署（jekins自动部署）
+docker k8s
+托管在github上
+1自动装箱（自动容器部署）2自我修复（一秒钟启动）3水平扩展（不够就自动启动）
+4服务发现和负载均衡（服务之间的依赖和负载均衡）5自动发布和回滚
+6密钥和配置管理（让容器去读取配置中心的配置信息）
+7存储编排
+8任务的批处理运行
+k8s集群 最小单元是POD，容器的外壳，一个POD内有多个容器，共享net user，存储卷名称空间
+一般一个pod放一个容器，或者放多个容器，其中有一个主容器，其它都是辅助用的。
+每台主机都装k8s相关服务，协调彼此。
+masters/workers
+创建和请求给master(apiserver,scheduler(1筛选2优选 )，controllermanager（高可用）) ，master会去找node（kubelet,docker，kube-proxy）的资源然后调度上去启动
+也实现了控制器（loop 持续探测），
+给pod打上标签，然后根据标签分类识别出pod
+
+labelselator过滤资源对象pod的工具。
+ pod控制器，replicationController 同一类的pod的副本，多退少补
+ pod容器的滚动更新，自动控制实现，比如版本的更新。也可以回滚
+ deployment控制器，管理无状态pod    HPA自动监控水平扩展pod
+ statefulset 有状态副本集
+ daemonset 运行一个副本
+ job，ctonjob 作业，周期性作业 job结束，pod可以结束了
+
+pod有生命周期，会建新的pod那么，如何访问呢？
+pod到注册中心注册
+客户端和pod之间加一个中间层 service，还可以调度。service靠标签选择器识别，是个规则，
+系统性的架构pod，比如service专门给master用的，addOns 附件，让功能更丰富的一组应用程序。
+k8s运行在云计算平台上。
+监控pod也有附件
+service 和node和pod分别在不同的网络
+不同节点的容器只能通过net转换，暴露出去。或者作为隧道俩层封装。
+pod通信有三种
+1同一pod内多个容器：lo通信，在一个交换机上。
+2各pod通信：可以直接通信，ip地址不冲突，或者用叠加网络，隧道转发
+3pod与service通信：iptables
+apiserver存储很多pod的变动，master都会共享这个变动，使用共享存储。etcd存储，key-value,像zookeeper集群
+互相靠ca互相认证才能保证安全。
+ 
+etcd内部 https ca1 内部证书。
+向apiserver 通信，ca2需要证书。
+
+apiserver与客户端之间需要证书
+apiserver 与kubelet通信 证书
+与kubeproxy通信 证书
+
+网络k8s不提供，需要第三方组件提供。
+
+CNI插件：网络解决插件,第三方的
+flannel:网络配置
+calico：网络配置，网络策略
+canel:俩个搭配使用
+都可以作为容器运行。
+一类pod运行在名称空间中，不是网络边界，是管理边界。网络策略可以隔离互相的访问。
+
+master 中的组件都是独立安装和配置，互相也要通信。
+
+集群部署方式1 用过节点上yum install部署 ，，组件运行为系统级守护进程，自己得作证书。
+master（apiserver,ectd,controllermanager,schedler） 172.20.0.70/16 应该部署三个
+node1(kubelet,kubeproxy,docker,flannel) 节点网络    172.20.0.66
+node2	172.20.0.67
+pod网络 10.244.0.0/16 是flannel默认的
+service网络：10.96.0.0/12
+
+
+使用kubeadm 方式部署，每个节点都要安装docker 和 kubelet，启动后，初始化mater和node
+mater组件运行为静态pod，然后kubeproxy也得运行为pod。自我管理，down机了可以自行管理
+
+master和node 都需要flannel，支撑pod通信，也是pod，是动态pod，可以被k8s管理。
+
+kubeadm在github上，在github的kubenates目录下托管。
+步骤
+1master,nodes：安装kublet，kubeadm，docker,flannel(pod资源彼此通信)
+2master：kubeadm init (预检，证书，私钥，配置文件，静态pod，和清单文件，部署addOn)
+3nodes:kubeadm join(预检，认证到master节点，pod安装，kubeproxy和dns)
+
+每一个节点
+每一个节点，禁止iptables服务和filewall开机禁止启用
+时间服务器得同步
+etc/hosts文件互相解析
+
+master 172.20.0.70
+部署docker
+
+cd /etc/yum.repos.d/   yum仓库文件
+wget https://mirror....  （1mirror.aliyun.com aliyun上的docker仓库 dockr-ce/linux/centos/docker-ce.repo）
+vim docker-ce.repo 指向aliyun即可
+
+安装kubenetes的yum
+vim kubernetes.repo
+[kubernetes]
+name=Kubernetes Repo
+baseurl=mirror.aliyun.com aliyun上的kubenetes仓库 kubernetes/yum/repos/kubernetes-el7-x86_64
+gpgcheck=0
+gpgkey=aluyun上的yumkey地址
+enabled=1
+
+yum repolist  （看yum仓库是否正常工作）
+
+yum instal docker-ce kublet kubeadm kubectl(apiserver客户端命令行包)
+
+提示y
+
+提示有错误，改gpgcheck=0
+
+wget keyurl  （解决gpgey报错问题）
+
+rpm --import yum-key.gpg
+
+wget rpm-package-key.gpg
+
+rpm --import rpm-package-key.gpg
+
+yum instal docker-ce kublet kubeadm kubectl(apiserver客户端命令行包)
+
+启动docker服务 因为docker下载不到镜像文件
+
+vim /usr/lib/systemd/system/docker.service
+
+Environment="HTTPS_PROXY=http://www.ik8s.io:10080"
+Environment="NO_PROXY=127.0.0.0/8,172.20.0.0/16"
+
+systemctl daemom-reload
+systemctl start docker
+docker info
+
+然后docker大量生产iptables规则
+
+cat /proc/sys/net/bridge/beidge-nf-call-iptables 和 ip6tables 值为1才是对的
+
+启动kublet
+
+rpm -ql kublet 看看安装了哪些文件
+
+systemctl start kubelet
+systemctl status kubelet
+tail /var/log/messages
+systemctl stop kubelet
+
+systemctl enable kubelet 发现以上不需要启动，开机自启即可，因为很多还没有初始化完成
+
+systemctl enable docker 使docker也开机自启
+
+kubeadm 的初始化
+
+kubeadm init --help 很多参数设置，有默认值
+(版本和指定pod和service的网络)
+kubeadm init --kuberbetes-version=v1.11 --pod-network-cidr=10.244.0.0/16 --service-cidr=10.96.0.0/12
+
+忽略错误信息 比如swap
+
+忽略swap得配置
+vim /etc/sysconfig/kubelet
+KUBELET_EXTRA_ARGS="--fail-swap-on=false"
+
+kubeadm init --kuberbetes-version=v1.11 --pod-network-cidr=10.244.0.0/16 --service-cidr=10.96.0.0/12 --ignore-preflight-errors=Swap
+
+启动成功后，会提示一些命令如何加入master
+
+docker image ls 此时看有多少镜像下来了
+
+pause镜像？
+
+基础架构容器就是pause，关于网络和存储卷之类的，不用启动和运行
+
+init默认给了俩个插件，就是 CoreDNS kube-proxy
+
+建议init的执行，还有一个加入集群的命令提示，复制出来 kubeadm join ......
+
+ss -tnl 查看apiserver 监听的socket信息
+
+init建议 mkdir -p ...
+
+可以使用kubectl命令
+
+kubectl get cs 组件信息
+
+kubectl get nodes 集群节点信息
+
+未就绪，是因为缺少pod网络附件 flannel
+
+部署flannel github官方站点
+
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flanne.yml
+
+kubectl get pods -n kube-system   系统上的pods有flannel信息才行
+
+kubectl get ns 名称空间 系统级的在kube-system中
+
+
+
+nodes 172.20.0.66 172.20.0.67
+
+scp /usr/lib/systemd/system/docker.service node01:/usr/....
+scp /etc/sysconfig/kubelet node01...
+重复master步骤，除了kubeadm init过程
+
+kubeadm join （上面的复制的join命令） --ignore-preflight-errors=Swap
+
+加入集群成功
+
+这边自动下载flnanel，不需要额外安装
+
+
+快速入门
+
+apiserver 的命令就是kubectl是k8s的入口可以管理 很多对象
+
+比如 ：pod service pod控制器（很多） node 
+
+taint是污点，节点可以有污点，对象身上有污点，你能容忍污点就能成，不容忍就不能成，和调度有关
+
+master身上很pod有污点，所以不被调用，只用contrleer-manager之类的pod
+
+kubectl describe node node01.s.com 描述node01的详细信息 taint是污点。
+
+kubectl version 版本信息
+
+kubectl cluster-info 集群信息
+
+正式运用（和docker搭配）
+
+跑一个nginx
+
+kubectl run nginx --image=nginx  跑一个nginx的最新的镜像 控制器叫nginx
+kubectl run nginx --image=nginx --replicas=5 5个pod资源
+								--restart=Never 挂了不重启，不会去补上去
+								--command 和docker类似运行自己的命令
+				--schedule="0/5***?" 			 创建了一个job
+
+kubectl run nginx-deploy --image=nginx:1.14-alpine --port=80 --replicas=1
+
+kubectl get deployment  获取所有的控制器
+
+kubectl get pod -o wide 获取所有的pods 哪个ip 创建的pod属于 cni0桥
+
+curl 10.244.2.2 pod地址在k8s内部使用，可以直接使用pod网段
+
+跳过k8s访问要使用service
+
+kubectl delete pods pode-name 虽然删了，但是控制器发现不够了，就又启动一个，换了个节点。
+
+kubectl expose deployment nginx-deploy --name=nginx --port=80 --target-port=80 --protocol=TCP			(service 有ip和port pod也有ip和port)
+把这个控制器暴露出服务，服务名叫nginx 端口是80 目标pod端口是80
+type默认是服务于集群于内部pod客户端
+
+kubectl get svc  获取服务。 ip是动态分配的
+
+service为pod提供固定访问地址的
+
+curl 10.98.39.54  访问service地址 集群内部可被访问 是被pod客户端所访问
+
+可以基于service名称来访问,ip动态分配的，此时会变，使用服务名不会变
+
+获取coredns来访问服务
+
+kubectl get pods -n kube-system -o -wide 查看所有pod的扩展信息
+
+kubectl get svc -n kube-system 得到kube-dns的服务名和地址 nginx服务名注册到kube-dns中了（10.96.0.10）
+
+yum install bind-utils 解析工具
+
+dig -t A nginx @10.96.0.10 
+
+使用pod作为客户端
+
+再起一个pod
+
+kubectl run client --image=busybox --replicas=1 -it --restart=Never
+
+再交互式访问 cat /etc/resolv.conf  显示的是10.96.10
+
+dig -t A nginx.default.svc.cluster.local @10.96.0.10 解析出nginx服务地址
+
+然后直接访问nginx服务名   
+curl nginx
+
+此时人为损坏pod，重新变成其它pod了，根据标签来选择绑定，和ip地址无关
+
+然后继续访问nginx继续访问到。
+
+kubectl describe svc nginx 服务的详细信息
+
+可以改ip地址
+
+kubectl edit svc nginx
+
+可以手动改动ip地址，变化会立刻到coredns解析记录中去
+
+kube delete svc nginx 删除服务
+
+重新创建服务，名称不变还叫nginx
+
+nginx的ip地址变化了，服务再，服务会动态反应到coredns中了
+
+kubec  describe deployment nginx-deploy 获取控制器信息
+
+我们创建的是控制器名称，而pod名成是控制器创建的
+
+deployment的副本数量可以动态修改的
+
+service后面是跟着一个deployment的多个副本，是负载均衡的
+
+扩展到3个或者5个
+
+kubectl scale --replicas=5 deployment nginx-deploy 动态扩展，也可以缩进
+
+也可以作滚动更新和版本升级
+
+kubectl get pods
+
+kubectl describe pods pod-name 内部容器名称和镜像
+
+kubectl set image deployment nginx-deploy congtainername=镜像  动态更新镜像版本
+
+kubectl rollout status deployment nginx-deploy 滚动显示这个控制器里面pod的镜像版本，灰度的，有多个版本可以同时使用
+
+升级故障可以回滚
+
+kubectl rollout undo deployment nginx-deploy 不指定版本为上一个版本
+
+还可以自动扩缩容，依赖于资源的监控程序。
+
+集群外部如何访问service
+
+kubectl edit service nginx-deploy
+
+改type： NodePort
+
+kubectl get svc 
+
+172.20.66:30020 通过ip节点可以访问到 集群外部可以访问到
+
+可以作负载均衡器
+
+有状态服务很难。
+
+可以作资源清单定义入门。
+
+资源：对象
+	workload: Pod ，ReplicaSet.Deployment,StatefulSet,DaemonSet,Job,Cronjob
+	服务发现和均衡：Service,Ingress
+	配置与存储：Volume，CSI(第三方存储卷)
+		configMap ,Secret  配置中心与敏感数据
+	集群级资源：Namespace，Node,Role,ClusterRole,RoleBinding ,ClusterRoleBinding
+	元数据型资源：HPA ,PodTemplate，LimitRange 再名称空间级别给调度器使用的
+
+资源可以使用命令来配置，也可以使用配置清单来创建
+
+kubectl get pod podname -o yaml 资源清单
+spec 是期望的目标状态  用户定义
+status是目前的状态 无限向目标状态靠近和转移
+
+apiserver 仅接受JSON格式的资源定义：
+yaml格式提供配置清单，apiserver可自动转为JSON格式，然后提交。
+
+配置清单的一级key
+ kubectl api-versions
+ 
+ apiVersion:group/version,
+ kind: 资源类别//Pod，Service，Deployment,
+ metadata:
+	name
+	namespace
+	labels
+	annotations
+	
+	每个资源名引用的PATH
+	/api/group/version/namespaces/namespace/type/name
+	spec: //期望的状态
+
+	status: //当前状态
+	
+自己创建 以myApp为例
+
+mkdir manifests
+vim pod-demo.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+	name: pod-demo
+	namespace: default
+	labels:        //object 最多63个字符 字母 数字 _ - . 只能以字母和数字开头，value可以为空，只能以字母和数字开头结尾
+		app: myapp
+		tier: frontend
+	
+	 annotations：
+		ccw: clustar admin
+	 //与label不同的是，不用于挑选对象，仅为对象提供元数据。 没用规则限制
+	 
+spec:
+	containers:     //list
+	-name: myapp
+	 image: redis
+	-name: busybox
+	 image: busybox:latest
+	 imagePullPolicy: IfNotPresent       //镜像下载策略 Always总是去下载,Never,IfNotPresent
+	 args:
+	 
+	 command: //镜像中的entrypoint和cmd都没用
+	 - "/bin/sh"
+	 - "-c"
+	 - "echo ${data} >> /usr/share/nginx/html/index.html; sleep 5"
+	 livenessProbe: //探测
+		exec:
+			command: ["test","-e","/tmp/healthy"]
+		initialDelaySeconds: 1
+		periodSeconds: 3  //探测失败会重启
+	 
+	 nodeSelector：
+		disktype: ssd //运行再有disktype 的标签上了
+	 nodeName: 指定节点名上
+	 
+	 
+
+kubectl create -f pod-demo.yaml 从清单文件创建pod
+
+kubectl logs pod-demo myapp pod的访问日志
+
+kubectl exec -it pod-demo -c myapp -- /bin/sh  再哪个pod中的容器中运行命令
+	
+kubectl delete -f pod-demo.yaml 删除资源
+
+//只提供command 那么只运行此command
+//只提供args  将会使用args替换 image中的cmd作为参数传递给entrypoint
+//都有，则完全使用自定义，忽略image中的定义
+
+label，一个标签可放不同的对象，一个对象有多个标签，多对多关系，可以创建时指定，
+也可以命令修改。
+也可以分层打标签。
+
+
+kubectl get pods -L app 显示所有资源对应的标签的值
+
+kubectl get pods -l app!=myapp,run --show-labels 作为标签过滤,标签名为app
+
+增加标签
+
+kubectl label pods pod-demo release=canary
+
+kubectl label pods pod-demo release=stable --overwrite 修改标签
+
+标签选择器：
+等值关系 = == !=
+集合关系 "key in/not in(value 1,value2)" !key
+
+很多对象都可以打标
+
+nodeSelector:节点标签选择器
+
+pod运行到node01上
+
+pod的生命周期
+
+
+1 init c 多个初始化容器
+2容器探测
+3主容器启动时生命周期钩子，需要init，post start，pre stop
+
+对pod的检测。
+
+1.liveness probe 存活状态检测
+Pending（挂起）,Running，Failed，Succeeded，Unknow 
+通过apiserver通过kubelet来获取pod状态信息的
+
+
+2 readliness probe 就绪性检测
+
+创建pod过程：
+
+1 请求apiserver，保存到etcd中，目标请求状态
+2 api请求scheduled，调度结果放入etcd中，资源状态当中
+3 node01 kubelet通过apiserver 的状态变化 ，有一个新的任务给自己了，kubelet
+会拿到清单，会到当前节点去创建pod，然后发给apiserver，然后apiserver存到etcd中。
+
+restartPolicy:
+	Always，OnFailure，Never，Default to Always     //pod中容器挂了，
+
+除非对象不删，会一直重启，一直再哪个节点，除非节点挂了。
+
+pod有故障时要平滑终止。
+
+pod终止宽限期默认是30s
+
+pod容器的探测。
+
+探针类型有三种：
+ExecAction，TCPsocketAction，HttpGet
+
+liveness probe
+
+kubectl get pods -w 一直监控
+
+kubectl describe pods liveness-pod 探测器资源信息
+
+httpget探测
+
+livenessProbe:
+	httpGet:
+		port: 80
+		path: /index.html
+	initialDelaySeconds: 1
+	periodSeconds: 3
+
+到pod中去查看信息，describe
+
+pod是延迟的，service一关联，请求将是失败的。readiness就绪探测
+
+livenessProbe:
+	httpGet:
+		port: 80
+		path: /index.html
+	initialDelaySeconds: 1
+	periodSeconds: 3
+readinessProbe:     不就绪就不会向外提供服务
+	httpGet:
+		port: 80
+		path: /index.html
+	initialDelaySeconds: 1
+	periodSeconds: 3
+								
+								
+pod启动钩子 exec httpGet tcpSocket 作一些准备操作
+
+spec:
+	lifecycle:
+		postStart:
+			exec:
+				command: ["mkdir","-p","/data/web/html"] //再执行这个命令
+	command: ["/bin/sh","-c","sleep 3600"] //先执行这个命令
+	
+								
+
+
+
+
+
+
+
+
+
+
+
+
+

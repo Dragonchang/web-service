@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: owl-websocket
+spec:
+  type: NodePort
+  ports:
+    - name: server
+      nodePort: 31003
+      port: 8080
+      targetPort: 8203
+    - name: management
+      nodePort: 31004
+      port: 8081
+      targetPort: 8203
+  selector:
+    app: owl-websocket
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: owl-websocket
+  name: owl-websocket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owl-websocket
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: owl-websocket
+    spec:
+      containers:
+      - image: core.harbor.cz.shenlan.com/rv-owl-uat/owl-websocket-uat:57
+        name: owl-websocket-uat
+        resources: {}
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "uat"
+      imagePullSecrets:
+      - name: regcred
+status: {}

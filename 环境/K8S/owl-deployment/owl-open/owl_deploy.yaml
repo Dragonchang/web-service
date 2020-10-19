@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: owl-open
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8204
+      nodePort: 31007
+  selector:
+    app: owl-open
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: owl-open
+  name: owl-open
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owl-open
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: owl-open
+    spec:
+      containers:
+      - image: core.harbor.cz.shenlan.com/rv-owl-uat/owl-open-uat:76
+        name: owl-open-uat
+        resources: {}
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "uat"
+      imagePullSecrets:
+      - name: regcred
+status: {}

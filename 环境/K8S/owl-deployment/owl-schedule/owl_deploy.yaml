@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: owl-schedule
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8202
+      nodePort: 31005
+  selector:
+    app: owl-schedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: owl-schedule
+  name: owl-schedule
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owl-schedule
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: owl-schedule
+    spec:
+      containers:
+      - image: core.harbor.cz.shenlan.com/rv-owl-uat/owl-schedule-uat:75
+        name: owl-schedule-uat
+        resources: {}
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "uat"
+      imagePullSecrets:
+      - name: regcred
+status: {}

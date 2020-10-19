@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+mqtt:
+  username: admin
+  password: public
+  url: tcp://10.16.33.197:1883
+
+spring:
+  application:
+    name: robots
+  profiles:
+    active: test
+
+
+
