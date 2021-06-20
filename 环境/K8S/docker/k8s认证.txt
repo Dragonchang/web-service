@@ -1,0 +1,25 @@
+认证和授权和访问控制都有很多控制
+
+1操作k8s之前得有认证操作
+2认证通过，授权检查
+3级联到的其它资源，准入控制。
+
+支持插件来认证。
+
+令牌认证：就是密码登录，http服务的token。
+
+sso认证，证书认证
+
+授权： rbac
+用户 -》apiserver 
+user:username,uid
+group:
+extra:
+哪个API资源：
+RequestPath:    http://masterNode:6443/apis/apps/v1/namespaves/default/deployments/myapp-deploy/
+kubectl api-versions
+
+kubectl proxy --port=8080   监听在8080端口
+可以直接用curl发请求
+
+curl http://localhost:8080/api/v1/namespaves/default/           //响应json交互

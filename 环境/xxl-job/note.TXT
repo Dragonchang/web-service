@@ -1,0 +1,5 @@
+http://10.16.33.73:6060/job/xxl-job-dispatch-center/
+
+http://10.16.33.73:8282/xxl-job-admin
+admin/123456
+

@@ -1,0 +1,780 @@
+From 92934ade938a4e9ff6c75c84e1076bba349bc5cd Mon Sep 17 00:00:00 2001
+From: zhangfl <zhangfl@deepblueai.com>
+Date: Mon, 29 Jun 2020 09:40:17 +0800
+Subject: [PATCH] add mqtt for iot message transfer
+
+Change-Id: Ia7a0deb653d4be4391b47866d905c1d6039b49b2
+---
+ robots-iot/.gitignore                         |  37 ++++++
+ robots-iot/Dockerfile                         |   9 ++
+ robots-iot/pom.xml                            | 103 +++++++++++++++
+ .../shenlan/robots/iot/IotApplication.java    |  13 ++
+ .../iot/component/MqttAbstractListener.java   |  46 +++++++
+ .../robots/iot/component/MqttGateWay.java     |  13 ++
+ .../robots/iot/component/MqttSender.java      |  38 ++++++
+ .../robots/iot/component/ServerContext.java   |  26 ++++
+ .../robots/iot/config/MqttConfiguration.java  | 120 ++++++++++++++++++
+ .../robots/iot/config/MqttProperties.java     |  17 +++
+ .../robots/iot/controller/MqttController.java |  37 ++++++
+ .../shenlan/robots/iot/model/IotMessage.java  |  35 +++++
+ .../robots/iot/processor/Processor.java       |   8 ++
+ .../iot/processor/RobotsMqttListener.java     |  59 +++++++++
+ .../iot/processor/RobotsMqttProcessor.java    |  15 +++
+ .../robots/iot/processor/SubscribeTopics.java |  10 ++
+ .../shenlan/robots/iot/processor/Topic.java   |  20 +++
+ robots-iot/src/main/resources/application.yml |  17 +++
+ 18 files changed, 623 insertions(+)
+ create mode 100644 robots-iot/.gitignore
+ create mode 100644 robots-iot/Dockerfile
+ create mode 100644 robots-iot/pom.xml
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/IotApplication.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttAbstractListener.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttGateWay.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttSender.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/component/ServerContext.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttConfiguration.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttProperties.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/controller/MqttController.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/model/IotMessage.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/processor/Processor.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttListener.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttProcessor.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/processor/SubscribeTopics.java
+ create mode 100644 robots-iot/src/main/java/com/shenlan/robots/iot/processor/Topic.java
+ create mode 100644 robots-iot/src/main/resources/application.yml
+
+diff --git a/robots-iot/.gitignore b/robots-iot/.gitignore
+new file mode 100644
+index 00000000..73885d17
+--- /dev/null
++++ b/robots-iot/.gitignore
+@@ -0,0 +1,37 @@
++# Compiled class file
++*.class
++*.classpath
++/**/.settings/
++rebel.xml
++# Intellij
++*.iml
++*/*.iml
++*/target/*
++**/target/*
++.idea/*
++*.log
++*/.output/*
++
++# eclipse
++.project
++.factorypath
++
++# Mac
++.DS_Store
++
++# Log file
++*.log
++
++# BlueJ files
++*.ctxt
++
++# Mobile Tools for Java (J2ME)
++.mtj.tmp/
++
++# Package Files #
++*.jar
++*.war
++*.ear
++*.zip
++*.tar.gz
++*.rar
+diff --git a/robots-iot/Dockerfile b/robots-iot/Dockerfile
+new file mode 100644
+index 00000000..6a43a411
+--- /dev/null
++++ b/robots-iot/Dockerfile
+@@ -0,0 +1,9 @@
++FROM harbor.deepblueai.com/library/openjdk:8-jdk-alpine
++MAINTAINER deepblueai/robotos
++ADD target/robots-iot.jar robots-iot.jar
++#RUN set -xe && apk --no-cache add ttf-dejavu fontconfig
++RUN echo "Asia/Shanghai" >/etc/timezone
++RUN sh -c 'touch /robots-iot.jar'
++ENV JAVA_OPTS=""
++CMD exec java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar /robots-iot.jar
++EXPOSE 8201
+\ No newline at end of file
+diff --git a/robots-iot/pom.xml b/robots-iot/pom.xml
+new file mode 100644
+index 00000000..65a26a06
+--- /dev/null
++++ b/robots-iot/pom.xml
+@@ -0,0 +1,103 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>org.springframework.boot</groupId>
++        <artifactId>spring-boot-starter-parent</artifactId>
++        <version>2.3.1.RELEASE</version>
++        <relativePath/> <!-- lookup parent from repository -->
++    </parent>
++    <groupId>com.shenlan.robots</groupId>
++    <artifactId>robots-iot</artifactId>
++    <name>robots-iot</name>
++
++    <properties>
++        <java.version>1.8</java.version>
++        <docker.image.prefix>deepblueai</docker.image.prefix>
++        <spring.profiles.active>native</spring.profiles.active>
++    </properties>
++
++    <dependencies>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-web</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-configuration-processor</artifactId>
++            <optional>true</optional>
++        </dependency>
++        <dependency>
++            <groupId>org.projectlombok</groupId>
++            <artifactId>lombok</artifactId>
++            <optional>true</optional>
++        </dependency>
++
++        <dependency>
++            <groupId>org.springframework.integration</groupId>
++            <artifactId>spring-integration-stream</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.springframework.integration</groupId>
++            <artifactId>spring-integration-mqtt</artifactId>
++        </dependency>
++
++        <dependency>
++            <groupId>org.springframework.boot</groupId>
++            <artifactId>spring-boot-starter-test</artifactId>
++            <scope>test</scope>
++            <exclusions>
++                <exclusion>
++                    <groupId>org.junit.vintage</groupId>
++                    <artifactId>junit-vintage-engine</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++    </dependencies>
++
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.springframework.boot</groupId>
++                <artifactId>spring-boot-maven-plugin</artifactId>
++                <configuration>
++                    <finalName>${project.name}</finalName>
++                </configuration>
++                <executions>
++                    <execution>
++                        <goals>
++                            <goal>repackage</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
++            <plugin>
++                <groupId>com.spotify</groupId>
++                <artifactId>dockerfile-maven-plugin</artifactId>
++                <version>1.4.10</version>
++                <configuration>
++                    <repository>${docker.image.prefix}/${project.artifactId}-${spring.profiles.active}</repository>
++                    <tag>latest</tag>
++                    <buildArgs>
++                        <JAR_FILE>target/${project.build.finalName}.jar</JAR_FILE>
++                    </buildArgs>
++                </configuration>
++                <executions>
++                    <execution>
++                        <id>default</id>
++                        <phase>install</phase>
++                        <goals>
++                            <goal>build</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
++        </plugins>
++    </build>
++
++</project>
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/IotApplication.java b/robots-iot/src/main/java/com/shenlan/robots/iot/IotApplication.java
+new file mode 100644
+index 00000000..f359b7e4
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/IotApplication.java
+@@ -0,0 +1,13 @@
++package com.shenlan.robots.iot;
++
++import org.springframework.boot.SpringApplication;
++import org.springframework.boot.autoconfigure.SpringBootApplication;
++
++@SpringBootApplication
++public class IotApplication {
++
++    public static void main(String[] args) {
++        SpringApplication.run(IotApplication.class, args);
++    }
++
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttAbstractListener.java b/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttAbstractListener.java
+new file mode 100644
+index 00000000..9a0218b9
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttAbstractListener.java
+@@ -0,0 +1,46 @@
++package com.shenlan.robots.iot.component;
++
++import com.shenlan.robots.iot.model.IotMessage;
++import org.springframework.beans.factory.InitializingBean;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.beans.factory.annotation.Value;
++import org.springframework.beans.factory.config.BeanDefinition;
++import org.springframework.beans.factory.support.BeanDefinitionBuilder;
++import org.springframework.beans.factory.support.DefaultListableBeanFactory;
++import org.springframework.context.ApplicationContext;
++import org.springframework.context.ConfigurableApplicationContext;
++import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
++import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
++
++public abstract class MqttAbstractListener implements InitializingBean {
++    @Autowired
++    protected ApplicationContext applicationContext;
++
++    @Value("${spring.profiles.active:native}")
++    private String profile;
++
++    @Value("${spring.application.name}")
++    private String service;
++
++    public abstract String[] subscribe();
++
++    public abstract void receiveMessage(IotMessage paramIotMessage);
++
++    public void afterPropertiesSet() throws Exception {
++        String[] topics = subscribe();
++        if (topics == null || topics.length == 0)
++            return;
++        for (int i = 0; i < topics.length; i++)
++            topics[i] = "$queue/" + topics[i];
++        ConfigurableApplicationContext configurableApplicationContext = (ConfigurableApplicationContext)this.applicationContext;
++        DefaultListableBeanFactory defaultListableBeanFactory = (DefaultListableBeanFactory)configurableApplicationContext.getBeanFactory();
++        BeanDefinitionBuilder beanDefinitionBuilder = BeanDefinitionBuilder.genericBeanDefinition(MqttPahoMessageDrivenChannelAdapter.class);
++        beanDefinitionBuilder.addConstructorArgValue(this.service + "-" + this.profile + "_in_" + System.currentTimeMillis());
++        beanDefinitionBuilder.addConstructorArgValue(this.applicationContext.getBean("mqttClientFactory"));
++        beanDefinitionBuilder.addConstructorArgValue(topics);
++        beanDefinitionBuilder.addPropertyValue("completionTimeout", Integer.valueOf(10000));
++        beanDefinitionBuilder.addPropertyValue("converter", new DefaultPahoMessageConverter());
++        beanDefinitionBuilder.addPropertyValue("outputChannel", this.applicationContext.getBean("mqttInBoundChannel"));
++        defaultListableBeanFactory.registerBeanDefinition("mqttInbound", (BeanDefinition)beanDefinitionBuilder.getRawBeanDefinition());
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttGateWay.java b/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttGateWay.java
+new file mode 100644
+index 00000000..ae752fa3
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttGateWay.java
+@@ -0,0 +1,13 @@
++package com.shenlan.robots.iot.component;
++
++import org.springframework.integration.annotation.MessagingGateway;
++import org.springframework.messaging.handler.annotation.Header;
++
++@MessagingGateway(defaultRequestChannel = "mqttOutboundChannel")
++public interface MqttGateWay {
++    void sendToMqtt(@Header("mqtt_topic") String paramString1, String paramString2);
++
++    void sendToMqtt(@Header("mqtt_topic") String paramString1, String paramString2, @Header("mqtt_qos") int paramInt);
++
++    void sendToMqtt(@Header("mqtt_topic") String paramString1, String paramString2, @Header("mqtt_qos") int paramInt, @Header("mqtt_retained") boolean paramBoolean);
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttSender.java b/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttSender.java
+new file mode 100644
+index 00000000..13cf5bc7
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/component/MqttSender.java
+@@ -0,0 +1,38 @@
++package com.shenlan.robots.iot.component;
++
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.stereotype.Component;
++
++@Component
++@Slf4j
++public class MqttSender {
++    public boolean send(String topic, String message) {
++        return send(topic, message, null);
++    }
++
++    public boolean send(String topic, String message, Integer qos) {
++        try {
++            if (null != qos) {
++                ServerContext.getGateWay().sendToMqtt(topic, message, qos.intValue());
++            } else {
++                ServerContext.getGateWay().sendToMqtt(topic, message);
++            }
++        } catch (Exception e) {
++            e.printStackTrace();
++            log.error("ms MqttSender error topic:{},message:{},qos:{},error:{}", new Object[] { topic, message, qos, e.getMessage() });
++            return false;
++        }
++        return true;
++    }
++
++    public boolean send(String topic, String message, Integer qos, boolean retained) {
++        try {
++            ServerContext.getGateWay().sendToMqtt(topic, message, qos.intValue(), retained);
++        } catch (Exception e) {
++            e.printStackTrace();
++            log.error("ms MqttSender error topic:{},message:{},qos:{},retained,error:{}", new Object[] { topic, message, qos, Boolean.valueOf(retained), e.getMessage() });
++            return false;
++        }
++        return true;
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/component/ServerContext.java b/robots-iot/src/main/java/com/shenlan/robots/iot/component/ServerContext.java
+new file mode 100644
+index 00000000..534feb77
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/component/ServerContext.java
+@@ -0,0 +1,26 @@
++package com.shenlan.robots.iot.component;
++
++import org.springframework.beans.BeansException;
++import org.springframework.context.ApplicationContext;
++import org.springframework.context.ApplicationContextAware;
++import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
++import org.springframework.stereotype.Component;
++
++
++@Component
++public class ServerContext implements ApplicationContextAware {
++    private static ApplicationContext applicationContext = null;
++
++    public static MqttGateWay getGateWay() {
++        return (MqttGateWay)applicationContext.getBean(MqttGateWay.class);
++    }
++
++    public static MqttPahoClientFactory getMqttFactory() {
++        return (MqttPahoClientFactory)applicationContext.getBean(MqttPahoClientFactory.class);
++    }
++
++    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
++        if (ServerContext.applicationContext == null)
++            ServerContext.applicationContext = applicationContext;
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttConfiguration.java b/robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttConfiguration.java
+new file mode 100644
+index 00000000..3e433701
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttConfiguration.java
+@@ -0,0 +1,120 @@
++package com.shenlan.robots.iot.config;
++
++import com.shenlan.robots.iot.component.MqttAbstractListener;
++import com.shenlan.robots.iot.model.IotMessage;
++import lombok.extern.slf4j.Slf4j;
++import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.context.properties.EnableConfigurationProperties;
++import org.springframework.context.ApplicationContext;
++import org.springframework.context.annotation.Bean;
++import org.springframework.context.annotation.Configuration;
++import org.springframework.integration.annotation.IntegrationComponentScan;
++import org.springframework.integration.annotation.ServiceActivator;
++import org.springframework.integration.channel.DirectChannel;
++import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
++import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
++import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
++import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
++import org.springframework.messaging.Message;
++import org.springframework.messaging.MessageChannel;
++import org.springframework.messaging.MessageHandler;
++import org.springframework.messaging.MessagingException;
++import org.springframework.messaging.converter.MessageConverter;
++
++@Configuration
++@IntegrationComponentScan
++@Slf4j
++@EnableConfigurationProperties(value = MqttProperties.class)
++public class MqttConfiguration {
++    /**
++     * 订阅的bean名称
++     */
++    public static final String CHANNEL_NAME_IN = "mqttInboundChannel";
++    /**
++     * 发布的bean名称
++     */
++    public static final String CHANNEL_NAME_OUT = "mqttOutboundChannel";
++
++
++    @Autowired
++    private MqttProperties mqttProperties;
++
++    @Autowired
++    protected ApplicationContext applicationContext;
++
++    /**
++     * MQTT连接器选项
++     *
++     * @return {@link MqttConnectOptions}
++     */
++    @Bean
++    public MqttConnectOptions getMqttConnectOptions() {
++        MqttConnectOptions options = new MqttConnectOptions();
++        options.setCleanSession(true);
++        options.setMaxInflight(600);
++        options.setUserName(mqttProperties.getUsername());
++        options.setPassword(mqttProperties.getPassword().toCharArray());
++        options.setServerURIs(new String[]{mqttProperties.getUrl()});
++        options.setConnectionTimeout(10);
++        options.setKeepAliveInterval(20);
++        return options;
++    }
++
++    /**
++     * MQTT客户端
++     *
++     * @return {@link MqttPahoClientFactory}
++     */
++    @Bean
++    public MqttPahoClientFactory mqttClientFactory() {
++        DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
++        factory.setConnectionOptions(getMqttConnectOptions());
++        return factory;
++    }
++
++    @Bean
++    public MessageChannel mqttOutboundChannel() {
++        DirectChannel dc = new DirectChannel();
++        dc.subscribe(mqttOutboundHandler());
++        return (MessageChannel)dc;
++    }
++
++    @Bean
++    public MessageChannel mqttInBoundChannel() {
++        DirectChannel dc = new DirectChannel();
++        dc.subscribe(mqttInboundHandler());
++        return (MessageChannel)dc;
++    }
++
++    @Bean
++    @ServiceActivator(inputChannel = CHANNEL_NAME_IN)
++    public MessageHandler mqttInboundHandler() {
++        return new MessageHandler() {
++            public void handleMessage(Message<?> message) throws MessagingException {
++                IotMessage m = new IotMessage();
++                m.setTopic(message.getHeaders().get("mqtt_receivedTopic").toString());
++                m.setHeaders(message.getHeaders());
++                Object payload = message.getPayload();
++                m.setBody(payload.toString());
++                MqttAbstractListener listener = (MqttAbstractListener)MqttConfiguration.this.applicationContext.getBean(MqttAbstractListener.class);
++                try {
++                    listener.receiveMessage(m);
++                } catch (Exception e) {
++                    log.error("ms mqttInboundHandler error class:{},method:{}, topic:{},message:{},error:{}", new Object[] { listener.getClass().getName(), "receiveMessage", m.getTopic(), m.getBody(), e.getMessage() });
++                    e.printStackTrace();
++                }
++            }
++        };
++    }
++
++    @Bean
++    @ServiceActivator(inputChannel = CHANNEL_NAME_OUT)
++    public MessageHandler mqttOutboundHandler() {
++        MqttPahoMessageHandler messageHandler = new MqttPahoMessageHandler(this.mqttProperties.getClientId() + "_out_" + System.currentTimeMillis(), mqttClientFactory());
++        messageHandler.setAsync(true);
++        messageHandler.setConverter((MessageConverter)new DefaultPahoMessageConverter());
++        return (MessageHandler)messageHandler;
++    }
++}
++
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttProperties.java b/robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttProperties.java
+new file mode 100644
+index 00000000..dd2612e3
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/config/MqttProperties.java
+@@ -0,0 +1,17 @@
++package com.shenlan.robots.iot.config;
++
++import lombok.Data;
++import org.springframework.boot.context.properties.ConfigurationProperties;
++
++@Data
++@ConfigurationProperties("mqtt")
++public class MqttProperties {
++
++    private String username;
++
++    private String password;
++
++    private String url;
++
++    private String clientId;
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/controller/MqttController.java b/robots-iot/src/main/java/com/shenlan/robots/iot/controller/MqttController.java
+new file mode 100644
+index 00000000..a5c5d268
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/controller/MqttController.java
+@@ -0,0 +1,37 @@
++package com.shenlan.robots.iot.controller;
++
++import com.shenlan.robots.iot.component.MqttSender;
++import org.eclipse.paho.client.mqttv3.MqttException;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RequestParam;
++import org.springframework.web.bind.annotation.RestController;
++
++/**
++ * MQTT消息发送
++ *
++ * @author zhangfl
++ * @date 2020-03-10 13:21
++ **/
++@RestController
++@RequestMapping(value = "/")
++public class MqttController {
++
++    @Autowired
++    private MqttSender mqttSender;
++
++    /**
++     * 发送MQTT消息到设备123456789
++     *
++     * @param message 消息内容
++     * @return 返回
++     */
++    @GetMapping(value = "/mqtt", produces = "text/html")
++    public ResponseEntity<String> sendMqtt(@RequestParam(value = "msg") String message) throws MqttException {
++        mqttSender.send("robot-command/123456789", message, 2);
++        return new ResponseEntity<>("OK", HttpStatus.OK);
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/model/IotMessage.java b/robots-iot/src/main/java/com/shenlan/robots/iot/model/IotMessage.java
+new file mode 100644
+index 00000000..362ac585
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/model/IotMessage.java
+@@ -0,0 +1,35 @@
++package com.shenlan.robots.iot.model;
++
++import org.springframework.messaging.MessageHeaders;
++
++public class IotMessage {
++    private String topic;
++
++    private String body;
++
++    private MessageHeaders headers;
++
++    public String getTopic() {
++        return this.topic;
++    }
++
++    public void setTopic(String topic) {
++        this.topic = topic;
++    }
++
++    public String getBody() {
++        return this.body;
++    }
++
++    public void setBody(String body) {
++        this.body = body;
++    }
++
++    public MessageHeaders getHeaders() {
++        return this.headers;
++    }
++
++    public void setHeaders(MessageHeaders headers) {
++        this.headers = headers;
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/processor/Processor.java b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/Processor.java
+new file mode 100644
+index 00000000..dc47a81e
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/Processor.java
+@@ -0,0 +1,8 @@
++package com.shenlan.robots.iot.processor;
++
++
++import com.shenlan.robots.iot.model.IotMessage;
++
++public interface Processor {
++    void process(IotMessage message);
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttListener.java b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttListener.java
+new file mode 100644
+index 00000000..0cb2412f
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttListener.java
+@@ -0,0 +1,59 @@
++package com.shenlan.robots.iot.processor;
++
++import com.shenlan.robots.iot.component.MqttAbstractListener;
++import com.shenlan.robots.iot.model.IotMessage;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.stereotype.Component;
++import org.springframework.util.StringUtils;
++
++@Slf4j
++@Component
++public class RobotsMqttListener extends MqttAbstractListener {
++    private static String SYSTEM_TOPIC_TAG = "$SYS/brokers";
++    private static String SYSTEM_CLIENT_TAG = "clients";
++    private static String DEVICE_CONNECTION_TOPIC_TAG = "connected";
++    private static String DEVICE_DISCONNECTION_TOPIC_TAG = "disconnected";
++    private static int clientsIndex = 4;
++
++    @Autowired
++    RobotsMqttProcessor robotsMqttProcessor;
++
++    @Override
++    public String[] subscribe() {
++        return SubscribeTopics.getTopics();
++    }
++
++    @Override
++    public void receiveMessage(IotMessage message) {
++        if(message == null) {
++            log.error("empty message!");
++            return;
++        }
++        log.debug("接收消息主题 : " + message.getTopic());
++        log.debug("接收消息内容 : " + message.getBody());
++        if(filterValidMessage(message.getTopic())) {
++            robotsMqttProcessor.process(message);
++        }
++    }
++
++    private boolean filterValidMessage(String topic) {
++        if(StringUtils.isEmpty(topic)) {
++            log.warn("filterValidMessage this is a empty topic");
++            return false;
++        }
++        if(topic.startsWith(SYSTEM_TOPIC_TAG)) {
++            String [] item = topic.split("/");
++            if(item == null || item.length < clientsIndex
++            || !item[clientsIndex -1].equals(SYSTEM_CLIENT_TAG)) {
++                return false;
++            }
++            if(!topic.endsWith(DEVICE_CONNECTION_TOPIC_TAG)
++            && !topic.endsWith(DEVICE_DISCONNECTION_TOPIC_TAG) ) {
++                return false;
++            }
++        }
++        log.info("iot subscribe topic:" + topic);
++        return true;
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttProcessor.java b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttProcessor.java
+new file mode 100644
+index 00000000..43a8f55c
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/RobotsMqttProcessor.java
+@@ -0,0 +1,15 @@
++package com.shenlan.robots.iot.processor;
++
++import com.shenlan.robots.iot.model.IotMessage;
++import lombok.extern.slf4j.Slf4j;
++import org.springframework.stereotype.Component;
++
++@Slf4j
++@Component
++public class RobotsMqttProcessor implements Processor{
++
++    @Override
++    public void process(IotMessage message) {
++
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/processor/SubscribeTopics.java b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/SubscribeTopics.java
+new file mode 100644
+index 00000000..1aa3d75a
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/SubscribeTopics.java
+@@ -0,0 +1,10 @@
++package com.shenlan.robots.iot.processor;
++
++public class SubscribeTopics {
++    public static String[] getTopics() {
++        return new String[] {
++                Topic.ROBOTS_SYSTEM_MESSAGE.getMeasurementName(),
++                Topic.ROBOTS_SERVICE_CLEAN_PRE_POINT.getMeasurementName()
++        };
++    }
++}
+diff --git a/robots-iot/src/main/java/com/shenlan/robots/iot/processor/Topic.java b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/Topic.java
+new file mode 100644
+index 00000000..705800b4
+--- /dev/null
++++ b/robots-iot/src/main/java/com/shenlan/robots/iot/processor/Topic.java
+@@ -0,0 +1,20 @@
++package com.shenlan.robots.iot.processor;
++
++public enum Topic {
++  ROBOTS_SYSTEM_MESSAGE("$SYS/brokers/#"), //系统topic，用于设备的上下线监控
++  ROBOTS_SERVICE_CLEAN_PRE_POINT("robot-service/CLEAN_PRE_POINT");//深圳扫路王前置点位实时上传协议
++
++  private String measurementName;
++
++  Topic(String name) {
++    this.measurementName = name;
++  }
++
++  public String getMeasurementName() {
++    return measurementName;
++  }
++
++  public void setMeasurementName(String measurementName) {
++    this.measurementName = measurementName;
++  }
++}
+diff --git a/robots-iot/src/main/resources/application.yml b/robots-iot/src/main/resources/application.yml
+new file mode 100644
+index 00000000..7ddd0fb7
+--- /dev/null
++++ b/robots-iot/src/main/resources/application.yml
+@@ -0,0 +1,17 @@
++server:
++  port: 8080
++
++mqtt:
++  username: admin
++  password: public
++  url: tcp://10.16.33.197:1883
++  clientid: robot-service
++
++spring:
++  application:
++    name: robots
++  profiles:
++    active: test
++
++
++
+-- 
+2.24.0.windows.1
+

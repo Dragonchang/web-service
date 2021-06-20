@@ -1,0 +1,48 @@
+1.spring framework框架的学习
+   1.tomcat
+   2.filter
+   3.servlet
+   4.aop
+   5.annotion
+   6.ApiAspect
+   7.ioc
+   8.websocket
+
+2.数据库的学习
+3.redis
+4.RabbitMQ
+5.API Gateway
+6.nginx
+7.Feign
+8.nacos :nacos deepblue
+9.ELK
+
+微服务之间的通信：
+同步：Feign
+异步：RabbitMQ（一对一/一对多）
+
+负载均衡
+服务注册与发现
+
+服务快速部署
+
+服务快速配置
+
+服务监控
+
+
+监控：
+  连接数和连接信息的监控
+  work线程池个数
+  内存的监控
+  线程堆栈
+  堆信息
+  
+Lambda函数式
+Reactive 
+WebFlux
+
+
+
+
+

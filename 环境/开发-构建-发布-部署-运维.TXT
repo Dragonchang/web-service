@@ -1,0 +1,16 @@
+gerrit git 负责开发的代码管理
+服务器安装：
+  gerrit git
+
+jenkeins负责代码的构建、集成发布、集成部署。
+服务器安装：
+jenkines、git、maven（make）、docker
+  代码拉取、编译、docker镜像发布。
+
+harbor负责项目镜像管理：
+服务器安装：
+docker、docker-compose、harbor
+
+k8s负责项目的部署、运维。
+服务器安装：
+k8s组件、docker

@@ -1,0 +1,18 @@
+1.下载springframework源码
+2.下载gradle配置环境变量
+https://services.gradle.org/distributions/
+3.https://blog.csdn.net/weixin_39278265/article/details/114001472
+4.https://www.cnblogs.com/mazhichu/p/13163979.html
+
+
+	repositories {
+		maven{ url'https://maven.aliyun.com/repository/google' }
+		maven{url'http://maven.aliyun.com/nexus/content/groups/public/'}
+		maven{ url'http://maven.aliyun.com/nexus/content/repositories/jcenter'}
+		maven { url "https://plugins.gradle.org/m2" }
+		maven { url "https://repo.spring.io/plugins-release" }
+
+	}
+	
+	关闭防火墙
+	kotlin插件版本

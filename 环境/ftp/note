@@ -1,0 +1,33 @@
+groupadd ftpusers
+cat /etc/vsftpd/vsftpd.conf | grep -v ^# | grep -v ^$
+
+
+useradd -g ftpusers -M -d /data/ftpfile -s /sbin/nologin ftpusers
+useradd -g middle_dev -M -d /data/ftpfile/dev -s /sbin/nologin middle_dev
+useradd -g middle_test -M -d /data/ftpfile/test -s /sbin/nologin middle_test
+useradd -g middle_uat -M -d /data/ftpfile/uat -s /sbin/nologin middle_uat
+useradd -g middle_prod -M -d /data/ftpfile/prod -s /sbin/nologin middle_prod
+
+passwd ftpuser
+
+userdel ftpuser
+
+cat /etc/passwd
+less /etc/group
+
+deepblue2020
+
+systemctl enable vsftpd.service
+
+systemctl restart vsftpd.service  # 重启服务
+systemctl start vsftpd.service    # 启动服务
+systemctl status vsftpd.service   # 服务状态查看
+
+
+iptables -I INPUT -p tcp --destination-port 61001:62000 -j ACCEPT
+
+service iptables save
+systemctl restart iptables
+
+# firewall-cmd --permanent --zone=public --add-port=61001-62000/tcp
+# firewall-cmd --reload

@@ -1,0 +1,56 @@
+docker build -t elasticsearch-6.4.3 ./elasticsearch
+sudo docker run -d -it --restart=always --net=host -v /data:/data -p 9200:9200 elasticsearch-6.4.3
+docker images
+docker ps -a
+docker stop containerID
+docker rm containerID
+docker rmi imageID
+docker exec -it containerID /bin/bash
+docker logs containerID 
+curl -get localhost:9200
+
+netstat -anpt
+
+logstash��
+docker build -t logstash-6.4.3
+docker run -it --restart=always --net=host -p 9600:9600 -v "/data/ELK/logstash:/etc/logstash/conf.d"  logstash-6.4.3
+
+kibana��
+docker run -d -it --restart=always --net=host -p 5601:5601 kibana-6.4.3
+
+redis��
+docker run -d -it --restart=always --net=host -p 6379:6379  redis
+
+
+配置docker：
+deepblue@uat-1:/etc/docker$ cat daemon.json 
+{
+  "log-driver":"json-file",
+  "log-opts": {"max-size":"500m", "max-file":"3"},
+  "exec-opts": [ "native.cgroupdriver=systemd" ],
+  "insecure-registries": ["https://core.harbor.cz.shenlan.com"]
+}
+
+docker 重启：
+systemctl daemon-reload
+systemctl restart docker
+
+查看启动失败log：
+journalctl -x >log.text
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

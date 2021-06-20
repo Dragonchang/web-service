@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: owl-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api/biz
+        backend:
+          serviceName: owl-business
+          servicePort: 8080
+      - path: /api/websocket/
+        backend:
+          serviceName: owl-websocket
+          servicePort: 8080
+      - path: /api/open/
+        backend:
+          serviceName: owl-open
+          servicePort: 8080
+      - path: /api/op/
+        backend:
+          serviceName: owl-operation
+          servicePort: 8080
+      - path: /api/
+        backend:
+          serviceName: owl-service
+          servicePort: 8080

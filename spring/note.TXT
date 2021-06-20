@@ -1,0 +1,26 @@
+1.网关
+soul
+springCloud-gateway
+zuul
+
+2.rpc
+同步：
+	feign
+	dubbon
+异步：
+	mq
+
+3.loadbance
+ribbon
+dubbon
+
+4.配置中心
+nacos
+
+5.服务注册中心
+nacos
+Eureka
+
+6.分布式调度
+xxljob
+Elasticjob

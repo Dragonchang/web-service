@@ -1,0 +1,436 @@
+pod控制器。
+
+kubectl delete -f .yaml 自主式删除了就没了，就不会重建的
+
+kubectl run  是被pod控制器代为管理的，如果删了，会重建的。
+
+很少有自主式创建pod，pod控制器是内嵌了资源清单，帮我们管理
+
+ReplicaSet 指定副本，多退少补，可以自动扩缩容 
+用户期望副本数，标签选择器，pod资源模板，无状态的pod。 不建议直接使用
+
+deployment： 控制replicaset之上，无状态应用最好的控制器，可以分布不同的node上
+
+收集节点级别日志。访问的是节点的日志文件。
+DaemonSet  确保集群节点或部分节点只运行一个副本。精确运行一个，新增节点只会增加一个
+
+有时候只想运行一个任务，退出的时候没必要重启他，不需要pod始终运行，完成就正常退出，没
+完成就重新启动。
+job cronjob（周期性运行） 也是一个副本
+
+群体和个体的区别，比如rediscluster 挂了一个都不行
+
+有状态控制器
+
+statefulset   每一个副本 都是被单独管理的。是有数据的，当pod挂了，得作很多工作的
+定义成脚本放入set中
+
+比如备份 恢复到从节点，binlog位置，然后从节点开始同步binlog位置
+
+kubectl explain rs   定义replicaset资源清单
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+	name: myapp
+	namespave: default
+spec:
+	replicas: 2
+	selector: 		//挑选出的标签名叫app  值为myapp
+		matchLabels:
+			app: myapp
+			release: canary
+	template:	//pod元数据
+		matadata:
+			name: myapp-pod
+			labels: 
+				app: myapp
+				release: canary
+		spec: //pod里面的那个spec
+kubectl get rs 获取rs控制器
+
+kubectl get pods --show-labels
+
+当标签定义多个，控制器会多退少补
+
+使用service来调度pods，service和控制器没啥关系
+
+扩容1 编辑清单文件kubectl edit rs myapp
+	升级和回退版本
+	改文件里的镜像版本，重建才会改版本，重建会基于模板重建
+	删一个更新一个=灰度发布
+	2使用kubectl scale 
+	
+deployment：建立在replicaset之上，管理多个set，
+
+kubectl explain deploy
+
+
+
+
+
+service 依赖coredns 来负载均衡pod
+service依赖网络插件，flannel
+
+node network在节点上
+pod network ：实实在在存在的，某个设备的，容器的
+cluster network （service）虚拟的出来的规则
+
+kube-proxy 始终监视apiserver的关于pod资源变动，都会反应到service上的规则上
+
+ipvs 和 iptables 直接 访问，client访问ipv6 然后ipv6代理去访问其它pod
+
+清单创建service资源文件
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+	name: myapp-deploy
+	namespace: default
+spec:
+	replicas: 2
+	selector:
+		matchLabels:
+			app: myapp
+			release: canary
+	template:
+		metadata:
+			labels:
+				app: myapp
+				release: canary
+		spec:
+			containers:
+			-name: myapp
+			image: 
+			ports:
+			-name: http
+			containerPort: 80
+kubectl apply -f deploy-demo.yaml //apply可以创建和更新
+此时可以获取到rs
+
+kubectl get rs
+默认滚动更新，多一个少一个，多几个少几个
+1vim 文件，启动，可以动态扩展
+
+kubectl rollout history deployment myapp-deploy 查看这个控制器的滚动历史
+
+lubectl rollout undo 回滚版本
+通过history来查看revision
+kubectl rollout undo deployment myapp-deploy --to-revision=1
+2kubectl set image deployment myapp-deploy myapp=镜像 && kubectl rollout pause deployment myapp-deploy  命令更新
+
+只更新一个就暂停了，就是金丝雀发布。
+
+kubectl rollout status deployment myapp-deploy
+
+kubectl rollout resume deployment myapp-deploy 恢复更新
+
+3打补丁更新 kubectl patch deployment myapp-deploy -p '{"spec":{"replicas":5}}'
+
+4 更新策略，最多同时可用，最少多少可用。kubectl patch deployment myapp-deploy -p '{"spec":{"stratege":{"rollingUpdate":{"maxSurge":1,"maxUnavaible":0}}}}'
+
+kubectl get rs -o wide 查看replicaset 的信息 deployment创建了多个replicaset
+
+
+ds damonSet 也支持滚动更新
+
+清单文件
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+	name: myapp-ds
+	namespace: default
+spec:
+	selector:
+		matchLabels:
+			app: myapp
+			release: canary
+	template:
+		metadata:
+			labels:
+				app: myapp
+				release: canary
+		spec:
+			containers:
+			-name: myapp
+			image: 
+			env: //容器的环境变量
+			-name: RESID_HOST
+			value: redis.default.svc.cluster.local      //redis服务名称，解析dns出ip地址
+			ports:
+			-name: http
+			containerPort: 80
+
+结果是俩个，一个节点一个。
+
+netstat -tnl 本机端口映射
+
+nslookup redis.default.svc.cluster.local //dns解析
+
+kubectl set image daemonsets filebeat filebeat=镜像 这个控制器更新
+
+pod可以使用主机的网络名称空间
+
+daemonSets 时，直接共享宿主机的空间，可以直接访问宿主机的ip和port，不用暴露
+
+pods.hostNetwork: true
+
+service
+
+iptables  clientpod-》serviceIp ->到目标pod
+ipvs   
+pod改变，会到apiserver中，kube-proxy 监听到变化转到iptables规则中。
+
+kubectl get svc  cluster-ip 是集群内访问的。动态分配的，也可以指定
+
+kubectl explain svc
+
+清单文件
+
+类型
+NodePort 集群外部直接访问
+ClusterIp 集群内随机ip
+LoadBalancer 
+ExteralName 集群外部服务到集群内部来
+
+apiVersion: v1
+kind: Service
+metadata:
+	name: redis
+	namespace: default
+spec:
+	selector:
+		app: redis
+		role: logstor
+	clusterIp: 10.97.97.97 //自己指定
+	type: ClusterIp
+	ports:
+		name:
+		nodePort:    //只有type为 NodePort这里才有意义
+		port: 6379			//service 端口
+		targetPort:	6379	//pod端口
+		
+kubectl apply -f redis-svc.yaml
+kubectl get svc
+kubectl describe svc redis-svc 详细的信息有ip和port
+
+解析dns出ip地址
+redis.default.svc.cluster.local 
+ss -tnl 监听端口
+apiVersion: v1
+kind: Service
+metadata:
+	name: redis
+	namespace: default
+spec:
+	selector:
+		app: redis
+		role: logstor
+	clusterIp: 10.97.97.97 //自己指定
+	type: NodePort
+	ports:
+		name:
+		nodePort: 30080   //只有type为 NodePort这里才有意义
+		port: 6379			//service 端口
+		targetPort:	6379	//pod端口
+
+外部可直接 nodeIp:30080 映射到10.97.97.97：30080
+
+外部做个lvs或者nginx负载均衡器就可以直接访问了
+
+集群内部访问直接使用服务名称就可以了
+
+在云虚拟机上，k8s可以和云平台上作交互，会和iaas底层作负载均衡器
+
+外部机器会访问 iaas生成的负载均衡器上 然后负载到nodePort上，然后nodePort到service
+service负载均衡到内部pod
+
+集群内服务访问集群外服务。
+
+pod 访问 service 到 nodePort 到 外部服务。
+
+kubectl patch svc myapp -p '{"spec":{"sessionAffinity":"ClientIp"}}' 
+同一个客户端的请求始终到后端同一个pod，记住了session
+
+无头service 就是service没有clusterIp 直接到podId
+
+让clusterIp: None
+
+dig -t A myapp.default.svc.cluster.local. @10.96.0.10 //dns ip
+
+直接解析出 pod的ip
+
+ingress 和 ingressController
+
+服务都是四层调度，工作在tcp层，https工作在七层中
+
+iptables 和 ipvs都是四层无法解析https ，和ss会话
+
+换调度方式
+
+独特的pod 运行了七层负载均衡器，比如 nginx
+
+clietn 到 service -》直接访问nginx pod-》然后代理到 pod
+
+任何一个node都可以到pod，因为pod是有桥的。
+
+外部流量 -》 负载均衡器 -》 node -》service -》 nginx pod -》 pod
+
+性能太差
+
+pod共享宿主机的地址
+
+这样就少了一层，但是只能到这个节点上了，单点故障了。可以使用DaemonSet 有限的节点上来运行。
+
+这样的pod专门的名字叫 ingress controller
+pod controller 运行在managerControler之下的，而ingress controller不在之下，特殊的pod 专门用来七层负载均衡
+
+nginx 代理四组 pod组服务器，pod有生命周期，如何时别，借助service，pod关联到service中来，
+那service收到变动如何体现到nginx配置中呢，借助ingress
+
+ingress可以注入到 ingress controller中的配置文件来，service会告诉 ingress，ingres会变化到
+ingresscontroller 中来，nginx还可以重载。
+
+定义ingresscontroller 是个附件
+
+创建名称空间
+yum -y install git
+kubectl create namespace dev 创建名称空间
+kubectl get ns
+
+kubectl delete ns/dev 
+github/kubenetes/ingress-nginx/tree/master/deploy目录
+第一步
+1namespace.yaml
+kubectl apply -f namespace.yaml
+
+2configmap.yaml
+3rbac.yaml
+4tcp-service-configmap.yaml
+5udp..
+6with-rbac
+
+其它没顺序
+kubectl apply -f ./
+
+kubectl get pods -n ingress-nginx  //名称空间里的pods
+
+第二步
+部署一些pod 服务器
+并为每组也可以多组pod服务器配无头service
+
+第三步
+得给ingresscontroller建一个service，不然无法接入外部流量，因为这里的pod没有共享主机
+类型为NodePort
+apiVersion: v1
+kind: Service
+metadata:
+	name: ingress-nginx
+	namespace: ingress-nginx
+spec:
+	type: NodePort
+	ports:
+	-name: http
+	port: 80
+	targetPort: 80
+	protocol: TCP
+	nodePort: 30080
+	-name: https
+	port: 443
+	targetPort: 443
+	protocol: TCP
+	nodePort: 30443
+selector:
+	app: ingress-nginx
+	
+	
+	
+第四步
+
+清单文件
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+	name: ingress-myapp
+	namespace: default
+	annotations: //使用对应的controller的规则
+		kubenetes.io/ingress.class: "nginx"
+		
+spec:
+	rules:
+	-host: myapp.magedu.com //虚拟主机名 dns事先能解析
+	 http:
+		paths:
+		-path: 
+		 backend:
+			serviceName: myapp //service的名字
+			servicePort: 80
+			
+kubectl describe ingress ingress-myapp
+
+自动注入到ingressController之中
+
+外部直接用myapp.magedeu.com:30080 来访问
+
+使tomcat服务作为https服务
+
+1作证书
+openssl genrsa -out tls.key 2048 
+openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Beijing
+/L=Beijing/O=DevOps/CN=tomcat.magedeu.com
+
+kubectl create secret tls tomcat-ingress-secret --Cert=tls.crt
+--key=tls.key
+
+kubectl get secret
+
+
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+	name: ingress-myapp
+	namespace: default
+	annotations: //使用对应的controller的规则
+		kubenetes.io/ingress.class: "nginx"
+		
+spec:
+	tls:
+	- hosts:
+	 - tomcat.magedeu.com
+	 secretName: tomcat-ingress-secret
+	rules:
+	-host: myapp.magedu.com //虚拟主机名 dns事先能解析
+	 http:
+		paths:
+		-path: 
+		 backend:
+			serviceName: myapp //service的名字
+			servicePort: 80
+
+https://tomcat.magedeu.com:30443 使用https访问即可
+
+
+
+
+
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
