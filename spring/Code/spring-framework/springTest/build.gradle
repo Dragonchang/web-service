@@ -1,0 +1,21 @@
+plugins {
+    id 'java'
+}
+
+group 'org.springframework'
+version '5.1.21.BUILD-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile(project(":spring-beans"))
+    compile(project(":spring-core"))
+    optional(project(":spring-context"))  // for @Enable* support
+    optional(project(":spring-context-support"))  // for JavaMail and JSR-107 support
+
+}
