@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zfl.mapper.RoleMapper">
+
+    <resultMap type="com.zfl.po.Role" id="roleMap">
+        <id column="id" property="id" javaType="long" jdbcType="BIGINT" />
+        <result column="role_name" property="roleName" javaType="string"
+                jdbcType="VARCHAR" />
+        <result column="note" property="note"
+                typeHandler="com.zfl.handler.MyStringHandler" />
+    </resultMap>
+
+    <sql id="selectDto">
+        select id,role_name as roleName,note from role
+    </sql>
+    <select id="getRole" parameterType="long" resultMap="roleMap">
+        <include refid="selectDto"/> where id=#{id}
+    </select>
+
+    <select id="findRole" parameterType="long" resultMap="roleMap">
+        select id,role_name,note from role where 1=1
+        <if test="roleName != null and roleName != ''">
+        role_name like CONCAT('%',#{roleName javaType=string,jdbcType=VARCHAR,typeHandler=com.zfl.handler.MyStringHandler},'%')
+        </if>
+    </select>
+
+    <insert id="insertRole" parameterType="com.zfl.po.Role">
+        insert into
+        role(role_name,note) value(#{roleName},#{note})
+    </insert>
+
+    <delete id="deleteRole" parameterType="long">
+        delete from role where
+        id=#{id}
+    </delete>
+
+</mapper>
