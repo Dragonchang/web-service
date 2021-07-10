@@ -15,6 +15,7 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
     compile(project(":spring-beans"))
     compile(project(":spring-core"))
+    compile(project(":spring-web"))
     optional(project(":spring-context"))  // for @Enable* support
     optional(project(":spring-context-support"))  // for JavaMail and JSR-107 support
 

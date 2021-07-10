@@ -5,4 +5,5 @@
 
 	<bean id="myTestBean" class="org.springframework.test.MyTestBean"/>
 	<bean class="org.springframework.test.CustomBeanFactoryPostProcessor" id="customBeanFactoryPostProcessor" />
+	<bean id="myBeanPostProcessor" class="org.springframework.test.MyBeanPostProcessor" />
 </beans>

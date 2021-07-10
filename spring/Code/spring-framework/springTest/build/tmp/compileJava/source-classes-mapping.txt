@@ -1,6 +1,8 @@
-org/springframework/test/TestMain.java
- org.springframework.test.TestMain
+org/springframework/test/MyBeanPostProcessor.java
+ org.springframework.test.MyBeanPostProcessor
 org/springframework/test/CustomBeanFactoryPostProcessor.java
  org.springframework.test.CustomBeanFactoryPostProcessor
+org/springframework/test/TestMain.java
+ org.springframework.test.TestMain
 org/springframework/test/MyTestBean.java
  org.springframework.test.MyTestBean

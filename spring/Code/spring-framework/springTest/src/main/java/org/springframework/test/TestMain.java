@@ -26,8 +26,9 @@ public class TestMain {
 //		TestMain testMain = new TestMain();
 //		System.out.println(testMain.testBean.getName());
 
-		BeanFactory factory = new ClassPathXmlApplicationContext("spring-config.xml");
-		MyTestBean myTestBean = (MyTestBean) factory.getBean("myTestBean");
+		ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("spring-config.xml");
+		//applicationContext.addBeanFactoryPostProcessor((CustomBeanFactoryPostProcessor)applicationContext.getBean("customBeanFactoryPostProcessor"));
+		MyTestBean myTestBean = (MyTestBean) applicationContext.getBean("myTestBean");
 		System.out.println(myTestBean.getName());
 
 

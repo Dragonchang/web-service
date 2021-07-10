@@ -1,5 +1,6 @@
 package org.springframework.test;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 /**
@@ -25,7 +26,10 @@ public class MyTestBean {
 				"name='" + name + '\'' +
 				'}';
 	}
-
+	@Bean
+	public String testBean() {
+		return "";
+	}
 	public String getName() {
 		return name;
 	}
