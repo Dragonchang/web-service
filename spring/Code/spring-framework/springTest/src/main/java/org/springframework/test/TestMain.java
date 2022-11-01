@@ -26,12 +26,13 @@ public class TestMain {
 //		TestMain testMain = new TestMain();
 //		System.out.println(testMain.testBean.getName());
 
-		ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("spring-config.xml");
-		//applicationContext.addBeanFactoryPostProcessor((CustomBeanFactoryPostProcessor)applicationContext.getBean("customBeanFactoryPostProcessor"));
-		MyTestBean myTestBean = (MyTestBean) applicationContext.getBean("myTestBean");
-		System.out.println(myTestBean.getName());
+//		ClassPathXmlApplicationContext applicationContext = new ClassPathXmlApplicationContext("spring-config.xml");
+//		applicationContext.addBeanFactoryPostProcessor((CustomBeanFactoryPostProcessor)applicationContext.getBean("customBeanFactoryPostProcessor"));
+//		MyTestBean myTestBean = (MyTestBean) applicationContext.getBean("myTestBean");
+//		System.out.println(myTestBean.getName());
 
-
+		MyTestGenericApplicationContext myTestGenericApplicationContext = new MyTestGenericApplicationContext();
+		MyTestBean myTestBean = (MyTestBean)myTestGenericApplicationContext.getBean("myTestBean");
 //		GenericApplicationContext genericApplicationContext = new GenericApplicationContext();
 //		genericApplicationContext.refresh();
 //		Object myTestBean = genericApplicationContext.getBean("TestMain");

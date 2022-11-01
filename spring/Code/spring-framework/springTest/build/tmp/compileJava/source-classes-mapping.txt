@@ -2,6 +2,8 @@ org/springframework/test/MyBeanPostProcessor.java
  org.springframework.test.MyBeanPostProcessor
 org/springframework/test/CustomBeanFactoryPostProcessor.java
  org.springframework.test.CustomBeanFactoryPostProcessor
+org/springframework/test/MyTestGenericApplicationContext.java
+ org.springframework.test.MyTestGenericApplicationContext
 org/springframework/test/TestMain.java
  org.springframework.test.TestMain
 org/springframework/test/MyTestBean.java

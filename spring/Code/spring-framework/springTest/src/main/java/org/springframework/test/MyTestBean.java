@@ -1,6 +1,8 @@
 package org.springframework.test;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  * @create: 2021-06-09 16:19
  **/
 @Component
+@Configuration
+@Order(3)
 public class MyTestBean {
 	private String name = "ChenHao";
 

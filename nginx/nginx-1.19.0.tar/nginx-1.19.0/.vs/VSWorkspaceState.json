@@ -1,0 +1,10 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\src",
+    "\\src\\core",
+    "\\src\\stream"
+  ],
+  "SelectedNode": "\\src\\core\\ngx_crc32.c",
+  "PreviewInSolutionExplorer": false
+}
