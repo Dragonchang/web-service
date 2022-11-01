@@ -4,3 +4,128 @@ eyJhbGciOiJSUzI1NiIsImtpZCI6InRvVV9aaGI1RWNDVWZ4VkpFOHpCREtPc1lpOEhPNTU3S19iaFlo
 kubeadm join 172.16.2.128:6443 --token kwznay.40pxdcpp5etwdi85     --discovery-token-ca-cert-hash sha256:cba02d2d9e505ccb145721493b2a55a9c10fbe1b34d5cf49cdd13e54ab23bf8b
 
 https://10.16.32.44:32000/
+
+## CI/CD
+node {
+    
+	// git地址
+	def GitUrl = 'http://gerrit.deepblueai.com/RV_vehicle_temp'
+	// 分支
+	def BranchName = 'release'
+	// git认证信息
+	def GitCredentialsId = '25f76ead-1681-452d-9982-59e0a89e9ebf'
+	// harbor地址
+    def HarborUrl='core.harbor.cz.shenlan.com'
+	// harbor用户名
+    def HarborUser='rv-owl'
+	// harbor密码
+    def HarborPasswd='r1QXkWu2tY'
+	// 项目路径
+	def ProjectWorkspace="${env.WORKSPACE}/java/eagle/"
+	// 模块名称
+	def ModuleName="eagle-${module}"
+	// 本地镜像名
+	def LocalImage = "deepblueai/${ModuleName}-uat:latest"
+	// 发布镜像名
+	def TagImage = "${HarborUrl}/rv-owl-uat/${ModuleName}-uat:${env.BUILD_NUMBER}"
+	// K8S地址
+	def K8SHost = '10.16.34.80'
+	// 端口
+	def Ports = ['eagle-service':8301,'eagle-operation':8305,'eagle-open':8304,'eagle-iot':8303,'eagle-business':8306]
+	def TargetPort = Ports["${ModuleName}"]
+	// 环境
+	def Profile = "uat"
+	
+            
+    stage('Clone') {
+		echo '1.Clone Stage'
+		checkout([$class: 'GitSCM', branches: [[name: BranchName]], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: GitCredentialsId, url: GitUrl]]])
+    }
+        
+    stage('Build') {
+		echo "2.Build Docker Image Stage"
+		withEnv(['PATH+EXTRA=/usr/sbin:/usr/bin:/sbin:/bin']) {
+		    sh "cd ${ProjectWorkspace} && mvn clean install -U -pl ${ModuleName} -am -amd -Dmaven.test.skip=true -Dspring.profiles.active=${Profile} -Ddockerfile.tag='${env.BUILD_NUMBER}' -P prod"
+		}
+    }
+       
+    stage('Push'){
+		echo "3. Deploy Stage"
+		withEnv(['PATH+EXTRA=/usr/sbin:/usr/bin:/sbin:/bin']) {
+		    sh "docker login --username ${HarborUser} --password ${HarborPasswd} ${HarborUrl}"
+    		sh "docker tag ${LocalImage} ${TagImage}"
+    		sh "docker push ${TagImage}"
+		}
+    }
+    stage('Deploy'){
+		echo "4. Deploy Stage"
+		def remote = [:]
+        remote.name = 'k8s-master'
+        remote.host = K8SHost
+        remote.port = 22
+        remote.allowAnyHosts = true
+        remote.user = 'deepblue'
+		withCredentials([sshUserPrivateKey(credentialsId: '	8bb77ad7-6932-45fa-b17f-726ff8a445a5', keyFileVariable: 'identityFile', passphraseVariable: '', usernameVariable: 'userName')]) {
+			remote.identityFile = identityFile
+		    sshCommand remote: remote, command: "sudo sh /data/deploy/deploy.sh ${ModuleName} ${TagImage} ${TargetPort} ${Profile}"
+		} 
+    } 
+   
+ }
+ 
+ 
+ deploy.sh
+ #!/bin/bash
+
+#$1:appname
+#$2:image
+#$3:port
+#$4:profile
+kubectl delete --kubeconfig /etc/kubernetes/admin.conf -f /data/deploy/$1-deploy.yaml
+sed -e "s#{{APPNAME}}#$1#g;s#{{IMAGE}}#$2#g;s#{{PORT}}#$3#g;s#{{PROFILE}}#$4#g" /data/deploy/deploy.tpl > /data/deploy/$1-deploy.yaml
+kubectl apply --kubeconfig /etc/kubernetes/admin.conf -f /data/deploy/$1-deploy.yaml
+
+
+deploy.tpl
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{APPNAME}}
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: {{PORT}}
+  selector:
+    app: {{APPNAME}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: {{APPNAME}}
+  name: {{APPNAME}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{APPNAME}}
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: {{APPNAME}}
+    spec:
+      containers:
+      - image: {{IMAGE}}
+        name: {{APPNAME}}
+        resources: {}
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "{{PROFILE}}"
+      imagePullSecrets:
+      - name: regcred
+status: {}
+
